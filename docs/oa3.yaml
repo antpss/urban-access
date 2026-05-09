@@ -1,0 +1,341 @@
+openapi: 3.0.3
+
+info:
+  title: UrbanAccess API
+  description: |
+    REST API per il sistema **UrbanAccess**, una piattaforma di mappatura crowdsourcing
+    dell'accessibilità urbana.
+
+    ## Convenzioni
+    - Tutte le risposte sono in formato JSON.
+    - Architettura RESTful e stateless.
+    - password encryption via bcrypt.
+    - Autenticazione tramite JWT.
+
+    ## Modello utenti
+    Il sistema distingue tre ruoli principali: `cittadino`, `proprietario` e `operatore`.
+    Ai fini implementativi dello **Sprint 1**, è possbiile registrare via API solo il ruolo `cittadino`.
+    Seguirà l'implementazione della registrazione anche per `proprietarioStruttura` con il procedere delle user stories.
+
+    ## Roadmap registrazione (decisioni architetturali)
+    L'endpoint `POST /auth/register` è **scoped esclusivamente sui cittadini**
+    e non verrà esteso ad altri ruoli, per mantenere stabile il contratto API
+    di Sprint 1.
+
+    L'estensione ad altri ruoli avverrà in modo **additivo** tramite endpoint
+    dedicati:
+    - **Sprint 2**: `POST /auth/register/owner` per i proprietari di strutture.
+      Schema dedicato con campi specifici (`partitaIVA`, `ragioneSociale`).
+    - **Operatori comunali**: NON registrabili via API pubblica.
+      Creati esclusivamente tramite seed script o shell Mongoose dall'amministratore.
+ 
+    Questa scelta segue il principio REST "una risorsa, una URL" e mantiene
+    le specifiche OpenAPI di ogni endpoint più ordinate.
+
+  version: 1.0.0
+  contact:
+    name: Gruppo 17 - UrbanAccess - Andrea Boarini, Antonio Possemato, Giovanni Todesco
+    email: decideremaildicontatto@gmail.com
+  license:
+    name: MIT
+
+servers:
+  - url: http://localhost:3000/api/v1
+    description: Server di sviluppo locale
+
+tags:
+  - name: Authentication
+    description: Endpoint per registrazione e accesso degli utenti
+
+paths:
+
+  /auth/register:
+    post:
+      tags:
+        - Authentication
+      summary: Registra un nuovo cittadino
+      description: |
+        Crea un nuovo account di tipo `cittadino` nel sistema, imponendo dei controlli semantici sui campi.
+
+        **Nel contesto dello Sprint 1** questo endpoint è riservato alla registrazione di utenti con ruolo `cittadino`.
+        Tentativi di registrazione con ruoli diversi verranno rifiutati con l'errore `400 Bad Request`.
+
+        **Comportamento server-side:**
+        - L'email viene normalizzata (lowercase, trim) prima del salvataggio.
+        - La password viene salvata in formato **hashato** (da definire i salt rounds).
+        - Lo `scoreAffidabilita` viene inizializzato a `0` dal sistema.
+        - I campi `storicoPercorsi`, `storicoSegnalazioni` e `notifiche` vengono inizializzati come array vuoti.
+        - `profiloDisabilita` ha default `nessuna` se non specificato.
+
+      operationId: registraCittadino
+      requestBody:
+        required: true
+        description: Dati anagrafici e credenziali del nuovo cittadino.
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RegisterCittadinoRequest'
+            examples:
+              registrazioneMinima:
+                summary: Registrazione con i minimi campi obbligatori
+                value:
+                  email: mario.rossi@example.com
+                  password: password12345
+                  nome: Mario
+                  cognome: Rossi
+              registrazioneCompleta:
+                summary: Registrazione con disabilità motoria e posizione iniziale
+                value:
+                  email: anna.verdi@example.com
+                  password: anotherpassword456
+                  nome: Anna
+                  cognome: Verdi
+                  ruolo: cittadino
+                  profiloDisabilita: motoria
+                  posizione:
+                    latitudine: 46.0667
+                    longitudine: 11.1167
+      responses:
+
+        '201':
+          description: Cittadino registrato con successo.
+          headers:
+            Location:
+              schema:
+                type: string
+              description: URL della risorsa appena creata.
+              example: /api/v1/users/65a3f4e7b8d9c1f4a2e5b6c7
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RegisterResponse'
+
+        '400':
+          description: |
+            Dati di input non validi. Possibili cause:
+            - campo obbligatorio mancante
+            - formato email non valido
+            - password troppo corta (< 8 caratteri)
+            - **ruolo diverso da `cittadino`** (scope dello Sprint 1)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ValidationError'
+              examples:
+                emailInvalida:
+                  summary: Email con formato errato
+                  value:
+                    error: Validazione fallita
+                    details:
+                      - field: email
+                        message: Formato email non valido
+                passwordTroppoCorta:
+                  summary: Password sotto la soglia di caratteri minima
+                  value:
+                    error: Validazione fallita
+                    details:
+                      - field: password
+                        message: La password deve contenere almeno 8 caratteri
+                campoMancante:
+                  summary: Campo obbligatorio mancante
+                  value:
+                    error: Validazione fallita
+                    details:
+                      - field: nome
+                        message: Il nome è obbligatorio
+                ruoloNonValido:
+                  summary: Tentativo di registrare un ruolo diverso da `cittadino`
+                  value:
+                    error: Validazione fallita
+                    details:
+                      - field: ruolo
+                        message: Solo registrazione cittadino disponibile per lo Sprint 1
+
+        '409':
+          description: Conflitto — l'email risulta già registrata nel sistema.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                error: Email già registrata
+
+        '500':
+          description: Errore interno del server.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                error: Errore interno del server
+
+components:
+
+  schemas:
+
+    RegisterCittadinoRequest:
+      type: object
+      description: Payload per la registrazione di un nuovo cittadino.
+      required:
+        - email
+        - password
+        - nome
+        - cognome
+      properties:
+        email:
+          type: string
+          format: email
+          description: Email univoca dell'utente. Verrà normalizzata in lowercase.
+          maxLength: 254
+          example: mario.rossi@example.com
+        password:
+          type: string
+          format: password
+          description: Password in chiaro. Verrà salvata in formato hashato (bcrypt) lato server.
+          minLength: 8
+          maxLength: 128
+          example: SecurePassword12345
+        nome:
+          type: string
+          minLength: 1
+          maxLength: 50
+          example: Mario
+        cognome:
+          type: string
+          minLength: 1
+          maxLength: 50
+          example: Rossi
+        ruolo:
+          type: string
+          enum:
+            - cittadino
+          default: cittadino
+          description: |
+            Ruolo dell'utente nel sistema.
+            Per Sprint 1 l'unico valore accettato è `cittadino`.
+        profiloDisabilita:
+          type: string
+          enum:
+            - motoria
+            - visiva
+            - uditiva
+            - nessuna
+          default: nessuna
+          description: |
+            Profilo di disabilità del cittadino.
+            Campo opzionale alla registrazione — può essere modificato successivamente
+            tramite `PATCH /users/me/disability`.
+        posizione:
+          type: object
+          description: Posizione geografica iniziale del cittadino (opzionale).
+          properties:
+            latitudine:
+              type: number
+              format: double
+              minimum: -90
+              maximum: 90
+              example: 46.0667
+            longitudine:
+              type: number
+              format: double
+              minimum: -180
+              maximum: 180
+              example: 11.1167
+
+    RegisterResponse:
+      type: object
+      description: Risposta in caso di registrazione avvenuta con successo.
+      required:
+        - message
+        - user
+      properties:
+        message:
+          type: string
+          example: Utente registrato con successo
+        user:
+          $ref: '#/components/schemas/CittadinoPublic'
+
+    CittadinoPublic:
+      type: object
+      description: |
+        Rappresentazione pubblica di un cittadino.
+        **Non contiene mai la password**, neanche in formato hashato.
+      properties:
+        _id:
+          type: string
+          description: Identificativo univoco generato da MongoDB.
+          example: 65a3f4e7b8d9c1f4a2e5b6c7
+        email:
+          type: string
+          format: email
+          example: mario.rossi@example.com
+        nome:
+          type: string
+          example: Mario
+        cognome:
+          type: string
+          example: Rossi
+        ruolo:
+          type: string
+          enum:
+            - cittadino
+        profiloDisabilita:
+          type: string
+          enum:
+            - motoria
+            - visiva
+            - uditiva
+            - nessuna
+        scoreAffidabilita:
+          type: number
+          description: Punteggio di affidabilità dell'utente (calcolato dal sistema).
+          minimum: 0
+          example: 0
+        posizione:
+          type: object
+          nullable: true
+          properties:
+            latitudine:
+              type: number
+            longitudine:
+              type: number
+        createdAt:
+          type: string
+          format: date-time
+          example: '2026-05-08T14:30:00.000Z'
+
+    Error:
+      type: object
+      description: Schema di errore generico.
+      required:
+        - error
+      properties:
+        error:
+          type: string
+          description: Messaggio di errore leggibile per l'utente.
+
+    ValidationError:
+      type: object
+      description: |
+        Errore di validazione dell'input. Contiene un array `details`
+        con la lista di tutti i campi che hanno fallito la validazione.
+      required:
+        - error
+        - details
+      properties:
+        error:
+          type: string
+          example: Validazione fallita
+        details:
+          type: array
+          items:
+            type: object
+            properties:
+              field:
+                type: string
+                description: Nome del campo che ha fallito la validazione.
+                example: email
+              message:
+                type: string
+                description: Messaggio di errore specifico per il campo.
+                example: Formato email non valido
