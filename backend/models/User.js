@@ -2,66 +2,34 @@ const mongoose = require('mongoose');
 const bcrypt = require('bcrypt');
 
 const userSchema = new mongoose.Schema({
-    // ATTRIBUTI CLASSE UTENTE (Superclasse)
+    // attributi classe utente (superclasse)
     email: { 
         type: String, 
-        required: true, 
-        unique: true, 
+        required: [true, 'campo email obbligatorio'],
+        unique: [true, 'email già esistente'], 
         lowercase: true,
-        trim: true 
+        trim: true,
+        match: [/^\S+@\S+\.\S+$/, 'formato email non valido'] 
     },
     password: { 
         type: String, 
         required: true, 
-        minlength: 8 
-    },
-    ruolo: { 
-        type: String, 
-        enum: ['cittadino', 'proprietario', 'operatore'], 
-        default: 'cittadino' 
-    },
-    autenticato: { 
-        type: Boolean, 
-        default: false 
+        minlength: [8, 'lunghezza minima password 8 caratteri'] 
     },
     notifiche: [{
         messaggio: String,
         letta: { type: Boolean, default: false },
         data: { type: Date, default: Date.now }
     }],
-
-    // ATTRIBUTI CLASSE CITTADINO (Sottoclasse)
     nome: { 
         type: String, 
-        required: function() { return this.ruolo === 'cittadino'; } 
+        required: [true, 'campo nome obbligatorio'] 
     },
     cognome: { 
         type: String, 
-        required: function() { return this.ruolo === 'cittadino'; } 
+        required: [true, 'campo cognome obbligatorio'] 
     },
-    scoreAffidabilita: { 
-        type: Number, 
-        default: 0.0 
-    },
-    posizione: {
-        latitudine: { type: Number },
-        longitudine: { type: Number }
-    },
-    profiloDisabilita: { 
-        type: String, 
-        enum: ['motoria', 'visiva', 'uditiva', 'nessuna'], 
-        default: 'nessuna' 
-    },
-    storicoPercorsi: [{ 
-        type: mongoose.Schema.Types.ObjectId, 
-        ref: 'Percorso' 
-    }],
-    storicoSegnalazioni: [{ 
-        type: mongoose.Schema.Types.ObjectId, 
-        ref: 'Segnalazione' 
-    }]
-
-}, { timestamps: true });
+}, {timestamps: true, discriminatorKey: 'ruolo', collection: 'users'});
 
 
 // Middleware: Hashing della password prima del salvataggio
