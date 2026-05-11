@@ -33,10 +33,12 @@ const userSchema = new mongoose.Schema({
 
 
 // Middleware: Hashing della password prima del salvataggio
-userSchema.pre('save', async function(next) {
-    if (!this.isModified('password')) return next();
+userSchema.pre('save', async function() {
+    // Se la password non è stata modificata, esci (non serve next())
+    if (!this.isModified('password')) return;
+
+    // Hashing della password
     this.password = await bcrypt.hash(this.password, 12);
-    next();
 });
 
 module.exports = mongoose.model('User', userSchema);
