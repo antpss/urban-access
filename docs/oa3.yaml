@@ -211,23 +211,13 @@ paths:
                       - field: partitaIVA
                         message: Partita IVA deve essere di esattamente 11 cifre numeriche
         '409':
-          description: |
-            Conflitto su un campo univoco. Possibili cause:
-            - Email già registrata nel sistema.
-            - Partita IVA già registrata nel sistema.
+          description: Email già registrata nel sistema.
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/Error'
-              examples:
-                emailDuplicata:
-                  summary: Email già esistente
-                  value:
-                    error: Email già registrata
-                partitaIVADuplicata:
-                  summary: Partita IVA già esistente
-                  value:
-                    error: Partita IVA già registrata
+              example:
+                error: Email già registrata
         '500':
           description: Errore interno del server.
           content:
