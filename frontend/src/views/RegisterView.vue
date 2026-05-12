@@ -152,7 +152,7 @@ const showPassword = ref(false);
 const showConfirmPassword = ref(false);
 
 // URL di base delle API - in futuro estraibile in un file di config (.env)
-const API_BASE_URL = 'http://localhost:7000/api/v1';
+const API_BASE_URL = '/api/v1';
 
 const hasErrors = computed(() => {
   // Campi sempre obbligatori
@@ -215,7 +215,7 @@ const handleRegister = async () => {
 
   // Endpoint dinamico in base al ruolo selezionato nella tendina
   const endpointUrl = ruolo.value === 'cittadino'
-    ? `${API_BASE_URL}/auth/register`
+    ? `${API_BASE_URL}/auth/register/citizen`
     : `${API_BASE_URL}/auth/register/owner`;
 
   // Payload base, comune a entrambi i ruoli

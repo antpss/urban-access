@@ -5,6 +5,7 @@ const cors = require('cors');
 const path = require('path');
 require('./models/User');
 require('./models/Cittadino');
+require('./models/Proprietario');
 
 const authRoutes = require('./routes/auth');
 

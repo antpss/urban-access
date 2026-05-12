@@ -23,7 +23,7 @@ info:
       Creati esclusivamente tramite seed script o shell Mongoose dall'amministratore.
 
     Il payload di registrazione è **minimale** per i cittadini (solo identità).
-    I proprietari aggiungono `partitaIVA` e `ragioneSociale` poiché sono dati legalmente
+    I proprietari aggiungono `partitaIVA` poiché sono dati legalmente
     necessari per identificare un'attività commerciale.
 
   version: 1.0.0
@@ -140,7 +140,6 @@ paths:
 
         **Differenze rispetto al cittadino:**
         - Richiede `partitaIVA` (11 cifre, identificatore fiscale italiano).
-        - Richiede `ragioneSociale` (denominazione legale dell'attività).
 
         **Comportamento server-side:**
         - L'email viene normalizzata (lowercase, trim) prima del salvataggio.
@@ -161,7 +160,6 @@ paths:
               nome: Luigi
               cognome: Bianchi
               partitaIVA: '12345678901'
-              ragioneSociale: Bar Centrale S.r.l.
       responses:
         '201':
           description: Proprietario registrato con successo.
@@ -187,7 +185,7 @@ paths:
         '400':
           description: |
             Dati di input non validi. Possibili cause:
-            - campo obbligatorio mancante (email, password, nome, cognome, partitaIVA, ragioneSociale)
+            - campo obbligatorio mancante (email, password, nome, cognome, partitaIVA)
             - formato email non valido
             - password troppo corta (< 8 caratteri) o troppo lunga (> 128 caratteri)
             - formato partitaIVA non valido (deve essere esattamente 11 cifre numeriche)
@@ -267,14 +265,13 @@ components:
       type: object
       description: |
         Payload per la registrazione di un nuovo proprietario di struttura.
-        Estende il payload del cittadino con `partitaIVA` e `ragioneSociale`.
+        Estende il payload del cittadino con `partitaIVA`.
       required:
         - email
         - password
         - nome
         - cognome
         - partitaIVA
-        - ragioneSociale
       properties:
         email:
           type: string
@@ -304,12 +301,6 @@ components:
           description: Partita IVA italiana, esattamente 11 cifre numeriche.
           pattern: '^\d{11}$'
           example: '12345678901'
-        ragioneSociale:
-          type: string
-          description: Denominazione legale dell'attività commerciale.
-          minLength: 1
-          maxLength: 100
-          example: Bar Centrale S.r.l.
 
     RegisterResponse:
       type: object
