@@ -59,6 +59,18 @@
           </div>
         </div>
 
+        <!-- Campo Partita IVA: visibile solo per il ruolo "proprietario" -->
+        <transition name="slide-fade">
+          <div v-if="ruolo === 'proprietario'">
+            <label for="partitaIVA" class="block text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-1.5 ml-1">Partita IVA</label>
+            <input id="partitaIVA" type="text" v-model="partitaIVA" @input="validatePartitaIVA" maxlength="11"
+              class="appearance-none block w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl placeholder-slate-400 text-slate-800 focus:outline-none focus:ring-2 focus:ring-emerald-400 focus:bg-white transition-all sm:text-sm" 
+              :class="{'border-rose-400 focus:ring-rose-500': partitaIVAError}"
+              placeholder="11 cifre numeriche" />
+            <p v-if="partitaIVAError" class="text-rose-500 text-[11px] mt-1.5 ml-1 font-semibold">{{ partitaIVAError }}</p>
+          </div>
+        </transition>
+
         <div>
           <label for="email" class="block text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-1.5 ml-1">Email</label>
           <input id="email" type="email" required v-model="email" @input="validateEmail"
@@ -126,10 +138,12 @@ const cognome = ref('');
 const email = ref('');
 const password = ref('');
 const confirmPassword = ref('');
+const partitaIVA = ref('');
 
 const emailError = ref('');
 const passwordError = ref('');
 const confirmPasswordError = ref('');
+const partitaIVAError = ref('');
 const serverError = ref('');
 const successMessage = ref('');
 const isLoading = ref(false);
@@ -137,11 +151,21 @@ const isLoading = ref(false);
 const showPassword = ref(false);
 const showConfirmPassword = ref(false);
 
+// URL di base delle API - in futuro estraibile in un file di config (.env)
+const API_BASE_URL = 'http://localhost:7000/api/v1';
+
 const hasErrors = computed(() => {
-  return passwordError.value !== '' || 
+  // Campi sempre obbligatori
+  const baseInvalid = passwordError.value !== '' || 
          emailError.value !== '' || 
          confirmPasswordError.value !== '' || 
          !nome.value || !cognome.value || !email.value || !password.value || !confirmPassword.value;
+  
+  // Se è proprietario, controlla anche partita IVA
+  if (ruolo.value === 'proprietario') {
+    return baseInvalid || partitaIVAError.value !== '' || !partitaIVA.value;
+  }
+  return baseInvalid;
 });
 
 const validateEmail = () => {
@@ -170,24 +194,45 @@ const validateConfirmPassword = () => {
   }
 };
 
+const validatePartitaIVA = () => {
+  // La partita IVA italiana deve essere di esattamente 11 cifre numeriche
+  const pivaRegex = /^\d{11}$/;
+  if (partitaIVA.value.length > 0 && !pivaRegex.test(partitaIVA.value)) {
+    partitaIVAError.value = 'La partita IVA deve essere composta da 11 cifre numeriche.';
+  } else {
+    partitaIVAError.value = '';
+  }
+};
+
 const handleRegister = async () => {
   validateEmail(); validatePassword(); validateConfirmPassword();
+  if (ruolo.value === 'proprietario') validatePartitaIVA();
   if (hasErrors.value) return;
 
   isLoading.value = true;
   serverError.value = '';
   successMessage.value = '';
 
+  // Endpoint dinamico in base al ruolo selezionato nella tendina
+  const endpointUrl = ruolo.value === 'cittadino'
+    ? `${API_BASE_URL}/auth/register`
+    : `${API_BASE_URL}/auth/register/owner`;
+
+  // Payload base, comune a entrambi i ruoli
   const payload = {
     nome: nome.value,
     cognome: cognome.value,
     email: email.value,
-    password: password.value,
-    ruolo: ruolo.value
+    password: password.value
   };
 
+  // Aggiunta del campo partitaIVA solo per il proprietario
+  if (ruolo.value === 'proprietario') {
+    payload.partitaIVA = partitaIVA.value;
+  }
+
   try {
-    const response = await fetch('http://localhost:7000/api/v1/auth/register', {
+    const response = await fetch(endpointUrl, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(payload)
@@ -201,8 +246,9 @@ const handleRegister = async () => {
 
     successMessage.value = 'Benvenuto! Registrazione completata con successo.';
     
+    // Reset di tutti i campi
     nome.value = ''; cognome.value = ''; email.value = ''; password.value = ''; 
-    confirmPassword.value = ''; ruolo.value = 'cittadino';
+    confirmPassword.value = ''; partitaIVA.value = ''; ruolo.value = 'cittadino';
   } catch (error) {
     serverError.value = error.message === 'Failed to fetch' 
       ? 'Il server non risponde. Riprova più tardi.' 
@@ -220,5 +266,20 @@ const handleRegister = async () => {
 .fade-enter-from, .fade-leave-to {
   opacity: 0;
   transform: translateY(-10px);
+}
+
+/* Animazione per il campo Partita IVA che appare/scompare */
+.slide-fade-enter-active, .slide-fade-leave-active {
+  transition: all 0.3s ease;
+  overflow: hidden;
+}
+.slide-fade-enter-from, .slide-fade-leave-to {
+  opacity: 0;
+  transform: translateY(-10px);
+  max-height: 0;
+}
+.slide-fade-enter-to, .slide-fade-leave-from {
+  opacity: 1;
+  max-height: 100px;
 }
 </style>

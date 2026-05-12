@@ -10,10 +10,6 @@ const proprietarioStrutturaSchema = new mongoose.Schema({
         trim: true,
         match: [/^\d{11}$/, 'formato partita IVA non valido'] // la partita IVA deve essere di 11 cifre
     },
-    ragioneSociale: {
-        type: String,
-        required: [true, 'campo ragione sociale obbligatorio'],
-    },
     strutture: [{
         type: mongoose.Schema.Types.ObjectId,
         ref: 'StrutturaPrivata'
