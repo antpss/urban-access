@@ -27,4 +27,4 @@ const cittadinoSchema = new mongoose.Schema({
     }], 
 });
 
-module.exports = User.discriminator('Cittadino', cittadinoSchema);
+module.exports = User.discriminator('cittadino', cittadinoSchema);

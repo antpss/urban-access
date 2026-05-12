@@ -9,11 +9,11 @@ const operatoreSchema = new mongoose.Schema({
         unique: true,
         trim: true
     },
-    enteAppertenenza: {
+    enteAppartenenza: {
         type: String,
         required: [true, 'campo ente di appartenenza obbligatorio'],
         default: 'Comune di Trento'
     }
 });
 
-module.exports = User.discriminator('Operatore', operatoreSchema);
+module.exports = User.discriminator('operatore', operatoreSchema);

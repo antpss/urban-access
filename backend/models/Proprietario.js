@@ -20,4 +20,4 @@ const proprietarioStrutturaSchema = new mongoose.Schema({
     }]
 });
 
-module.exports = User.discriminator('Proprietario', proprietarioStrutturaSchema);
+module.exports = User.discriminator('proprietario', proprietarioStrutturaSchema);
