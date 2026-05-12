@@ -2,6 +2,7 @@ require('dotenv').config();
 const express = require('express');
 const mongoose = require('mongoose');
 const cors = require('cors');
+const path = require('path');
 require('./models/User');
 require('./models/Cittadino');
 
@@ -28,6 +29,12 @@ app.get('/api/v1/health', (req, res) => {
 
 // monta la route per la registrazione
 app.use('/api/v1/auth', authRoutes);
+
+// Serve frontend
+app.use(express.static(path.join(__dirname, '../frontend/dist')));
+app.get('/{*splat}', (req, res) => {
+    res.sendFile(path.join(__dirname, '../frontend/', 'index.html'));
+});
 
 // Connessione DB e avvio
 mongoose.connect(MONGO_URI)
