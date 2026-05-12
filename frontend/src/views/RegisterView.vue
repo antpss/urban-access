@@ -1,90 +1,128 @@
 <template>
-  <div class="min-h-screen flex items-center justify-center bg-green-50 py-12 px-4 sm:px-6 lg:px-8">
-    <div class="max-w-md w-full space-y-8 bg-white p-10 rounded-2xl shadow-xl border border-green-100">
+  <div class="min-h-screen flex items-center justify-center bg-gradient-to-br from-emerald-50 via-teal-50 to-green-100 py-12 px-4 sm:px-6 lg:px-8 relative overflow-hidden">
+    
+    <div class="absolute top-[-10%] left-[-10%] w-96 h-96 bg-emerald-200 rounded-full mix-blend-multiply filter blur-3xl opacity-50"></div>
+    <div class="absolute bottom-[-10%] right-[-10%] w-96 h-96 bg-teal-200 rounded-full mix-blend-multiply filter blur-3xl opacity-50"></div>
+
+    <div class="max-w-md w-full relative z-10 bg-white/90 backdrop-blur-xl p-10 rounded-[2rem] shadow-2xl border border-white">
       
-      <div class="text-center">
-        <div class="mx-auto h-12 w-12 bg-green-600 rounded-full flex items-center justify-center mb-4 shadow-lg shadow-green-200">
+      <div class="text-center mb-8">
+        <div class="mx-auto h-16 w-16 bg-gradient-to-tr from-emerald-400 to-teal-500 rounded-2xl flex items-center justify-center mb-5 shadow-lg shadow-emerald-200 transform -rotate-3 hover:rotate-0 transition-transform duration-300">
           <svg xmlns="http://www.w3.org/2000/svg" class="h-8 w-8 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 20l-5.447-2.724A2 2 0 013 15.382V6.418a2 2 0 011.106-1.789L9 2m6 18l5.447-2.724A2 2 0 0021 15.382V6.418a2 2 0 00-1.106-1.789L15 2m-6 18V2m6 18V2" />
           </svg>
         </div>
-        <h2 class="text-3xl font-extrabold text-green-900 tracking-tight">Urban Access</h2>
-        <p class="mt-2 text-sm text-green-700">Crea il tuo profilo per una città senza barriere</p>
+        <h2 class="text-3xl font-extrabold text-slate-800 tracking-tight">Urban Access</h2>
+        <p class="mt-2 text-sm text-slate-500">Mappa la tua città, elimina le barriere.</p>
       </div>
 
       <transition name="fade">
-        <div v-if="serverError" class="bg-red-50 border-l-4 border-red-500 p-4 text-sm text-red-700 rounded-r-md">
+        <div v-if="serverError" class="bg-rose-50 border-l-4 border-rose-500 p-4 mb-6 text-sm text-rose-700 rounded-r-xl">
           {{ serverError }}
         </div>
       </transition>
       <transition name="fade">
-        <div v-if="successMessage" class="bg-green-100 border-l-4 border-green-500 p-4 text-sm text-green-800 rounded-r-md font-medium">
+        <div v-if="successMessage" class="bg-emerald-50 border-l-4 border-emerald-500 p-4 mb-6 text-sm text-emerald-800 rounded-r-xl font-medium">
           {{ successMessage }}
         </div>
       </transition>
 
-      <form class="mt-6 space-y-5" @submit.prevent="handleRegister" novalidate>
+      <form class="space-y-5" @submit.prevent="handleRegister" novalidate>
+        
+        <div>
+          <label for="ruolo" class="block text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-1.5 ml-1">Come vuoi partecipare?</label>
+          <div class="relative">
+            <select id="ruolo" v-model="ruolo"
+              class="appearance-none relative block w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-slate-700 focus:outline-none focus:ring-2 focus:ring-emerald-400 focus:bg-white focus:border-transparent sm:text-sm transition-all cursor-pointer font-medium">
+              <option value="cittadino">👤 Cittadino (Esplora e segnala)</option>
+              <option value="proprietario">🏢 Proprietario (Gestisci struttura)</option>
+            </select>
+            <div class="pointer-events-none absolute inset-y-0 right-0 flex items-center px-4 text-slate-400">
+              <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
+            </div>
+          </div>
+        </div>
+
         <div class="grid grid-cols-2 gap-4">
           <div class="col-span-1">
-            <label for="nome" class="block text-xs font-semibold text-green-800 uppercase tracking-wider mb-1">Nome</label>
+            <label for="nome" class="block text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-1.5 ml-1">Nome</label>
             <input id="nome" type="text" required v-model="nome"
-              class="appearance-none rounded-lg relative block w-full px-3 py-2.5 border border-green-200 placeholder-green-300 text-green-900 focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-transparent sm:text-sm transition-all" 
+              class="appearance-none block w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl placeholder-slate-400 text-slate-800 focus:outline-none focus:ring-2 focus:ring-emerald-400 focus:bg-white transition-all sm:text-sm" 
               placeholder="Mario" />
           </div>
 
           <div class="col-span-1">
-            <label for="cognome" class="block text-xs font-semibold text-green-800 uppercase tracking-wider mb-1">Cognome</label>
+            <label for="cognome" class="block text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-1.5 ml-1">Cognome</label>
             <input id="cognome" type="text" required v-model="cognome"
-              class="appearance-none rounded-lg relative block w-full px-3 py-2.5 border border-green-200 placeholder-green-300 text-green-900 focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-transparent sm:text-sm transition-all" 
+              class="appearance-none block w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl placeholder-slate-400 text-slate-800 focus:outline-none focus:ring-2 focus:ring-emerald-400 focus:bg-white transition-all sm:text-sm" 
               placeholder="Rossi" />
           </div>
         </div>
 
-        <div>
-          <label for="email" class="block text-xs font-semibold text-green-800 uppercase tracking-wider mb-1">Email</label>
-          <input id="email" type="email" required v-model="email" @input="validateEmail"
-            class="appearance-none rounded-lg relative block w-full px-3 py-2.5 border border-green-200 placeholder-green-300 text-green-900 focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-transparent sm:text-sm transition-all" 
-            :class="{'border-red-400 focus:ring-red-500': emailError}"
-            placeholder="email@esempio.com" />
-          <p v-if="emailError" class="text-red-500 text-[10px] mt-1 font-bold italic">{{ emailError }}</p>
+        <div v-if="ruolo === 'cittadino'" class="flex items-start bg-amber-50/60 p-4 rounded-xl border border-amber-100 transition-all hover:bg-amber-50">
+          <div class="flex items-center h-5 mt-0.5">
+            <input id="esigenze" type="checkbox" v-model="esigenzeAccessibilita"
+              class="focus:ring-amber-500 h-5 w-5 text-amber-500 border-amber-300 rounded cursor-pointer transition-colors" />
+          </div>
+          <div class="ml-3 text-sm">
+            <label for="esigenze" class="font-bold text-amber-900 cursor-pointer">Ho esigenze di accessibilità</label>
+            <p class="text-amber-700 text-xs mt-1 leading-relaxed">Spunta la casella per sbloccare la personalizzazione del tuo profilo di accesibilità all'interno dell'app.</p>
+          </div>
         </div>
 
         <div>
-          <label for="password" class="block text-xs font-semibold text-green-800 uppercase tracking-wider mb-1">Password</label>
+          <label for="email" class="block text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-1.5 ml-1">Email</label>
+          <input id="email" type="email" required v-model="email" @input="validateEmail"
+            class="appearance-none block w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl placeholder-slate-400 text-slate-800 focus:outline-none focus:ring-2 focus:ring-emerald-400 focus:bg-white transition-all sm:text-sm" 
+            :class="{'border-rose-400 focus:ring-rose-500': emailError}"
+            placeholder="mario.rossi@esempio.com" />
+          <p v-if="emailError" class="text-rose-500 text-[11px] mt-1.5 ml-1 font-semibold">{{ emailError }}</p>
+        </div>
+
+        <div>
+          <label for="password" class="block text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-1.5 ml-1">Password</label>
           <div class="relative">
             <input :type="showPassword ? 'text' : 'password'" id="password" required v-model="password" @input="validatePassword"
-              class="appearance-none rounded-lg relative block w-full px-3 py-2.5 pr-16 border border-green-200 placeholder-green-300 text-green-900 focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-transparent sm:text-sm transition-all" 
-              :class="{'border-red-400 focus:ring-red-500': passwordError}"
-              placeholder="Min. 8 caratteri" />
+              class="appearance-none block w-full px-4 py-3 pr-20 bg-slate-50 border border-slate-200 rounded-xl placeholder-slate-400 text-slate-800 focus:outline-none focus:ring-2 focus:ring-emerald-400 focus:bg-white transition-all sm:text-sm" 
+              :class="{'border-rose-400 focus:ring-rose-500': passwordError}"
+              placeholder="Minimo 8 caratteri" />
             <button type="button" @click="showPassword = !showPassword" tabindex="-1"
-              class="absolute inset-y-0 right-0 pr-3 flex items-center text-xs font-bold text-green-600 hover:text-green-800">
+              class="absolute inset-y-0 right-0 pr-4 flex items-center text-xs font-bold text-emerald-600 hover:text-emerald-800 transition-colors">
               {{ showPassword ? 'Nascondi' : 'Mostra' }}
             </button>
           </div>
-          <p v-if="passwordError" class="text-red-500 text-[10px] mt-1 font-bold italic">{{ passwordError }}</p>
+          <p v-if="passwordError" class="text-rose-500 text-[11px] mt-1.5 ml-1 font-semibold">{{ passwordError }}</p>
         </div>
 
         <div>
-          <label for="confirmPassword" class="block text-xs font-semibold text-green-800 uppercase tracking-wider mb-1">Conferma Password</label>
+          <label for="confirmPassword" class="block text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-1.5 ml-1">Conferma Password</label>
           <div class="relative">
             <input :type="showConfirmPassword ? 'text' : 'password'" id="confirmPassword" required v-model="confirmPassword" @input="validateConfirmPassword"
-              class="appearance-none rounded-lg relative block w-full px-3 py-2.5 pr-16 border border-green-200 placeholder-green-300 text-green-900 focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-transparent sm:text-sm transition-all" 
-              :class="{'border-red-400 focus:ring-red-500': confirmPasswordError}" />
+              class="appearance-none block w-full px-4 py-3 pr-20 bg-slate-50 border border-slate-200 rounded-xl placeholder-slate-400 text-slate-800 focus:outline-none focus:ring-2 focus:ring-emerald-400 focus:bg-white transition-all sm:text-sm" 
+              :class="{'border-rose-400 focus:ring-rose-500': confirmPasswordError}"
+              placeholder="Ripeti la password" />
             <button type="button" @click="showConfirmPassword = !showConfirmPassword" tabindex="-1"
-              class="absolute inset-y-0 right-0 pr-3 flex items-center text-xs font-bold text-green-600 hover:text-green-800">
+              class="absolute inset-y-0 right-0 pr-4 flex items-center text-xs font-bold text-emerald-600 hover:text-emerald-800 transition-colors">
               {{ showConfirmPassword ? 'Nascondi' : 'Mostra' }}
             </button>
           </div>
-          <p v-if="confirmPasswordError" class="text-red-500 text-[10px] mt-1 font-bold italic">{{ confirmPasswordError }}</p>
+          <p v-if="confirmPasswordError" class="text-rose-500 text-[11px] mt-1.5 ml-1 font-semibold">{{ confirmPasswordError }}</p>
         </div>
 
-        <div class="pt-4">
+        <div class="pt-6">
           <button type="submit" :disabled="hasErrors || isLoading"
-            class="group relative w-full flex justify-center py-3 px-4 border border-transparent text-sm font-bold rounded-xl text-white bg-green-600 hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500 disabled:opacity-50 disabled:cursor-not-allowed shadow-lg shadow-green-100 transition-all transform hover:-translate-y-0.5">
-            <span v-if="isLoading">Elaborazione...</span>
+            class="group relative w-full flex justify-center py-3.5 px-4 text-sm font-bold rounded-xl text-white bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-600 hover:to-teal-600 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-emerald-500 disabled:opacity-60 disabled:cursor-not-allowed shadow-lg shadow-emerald-200 transition-all transform hover:-translate-y-0.5 active:translate-y-0">
+            <span v-if="isLoading" class="flex items-center">
+              <svg class="animate-spin -ml-1 mr-2 h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+              </svg>
+              Creazione in corso...
+            </span>
             <span v-else>Crea Account</span>
           </button>
         </div>
+        
       </form>
     </div>
   </div>
@@ -93,11 +131,14 @@
 <script setup>
 import { ref, computed } from 'vue';
 
+const ruolo = ref('cittadino');
 const nome = ref('');
 const cognome = ref('');
 const email = ref('');
 const password = ref('');
 const confirmPassword = ref('');
+
+const esigenzeAccessibilita = ref(false); 
 
 const emailError = ref('');
 const passwordError = ref('');
@@ -127,7 +168,7 @@ const validateEmail = () => {
 
 const validatePassword = () => {
   if (password.value.length > 0 && password.value.length < 8) {
-    passwordError.value = 'La password deve contenere almeno 8 caratteri.';
+    passwordError.value = 'Minimo 8 caratteri.';
   } else {
     passwordError.value = '';
   }
@@ -150,30 +191,38 @@ const handleRegister = async () => {
   serverError.value = '';
   successMessage.value = '';
 
+  const payload = {
+    nome: nome.value,
+    cognome: cognome.value,
+    email: email.value,
+    password: password.value,
+    ruolo: ruolo.value
+  };
+
+  if (ruolo.value === 'cittadino') {
+    payload.richiedeProfiloDisabilita = esigenzeAccessibilita.value;
+  }
+
   try {
-    const response = await fetch('/api/v1/auth/register', {
+    const response = await fetch('http://localhost:7000/api/v1/auth/register', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        nome: nome.value,
-        cognome: cognome.value,
-        email: email.value,
-        password: password.value
-      })
+      body: JSON.stringify(payload)
     });
 
     const data = await response.json().catch(() => ({}));
 
     if (!response.ok) {
-      throw new Error(data.error || 'Errore durante la creazione account.');
+      throw new Error(data.message || data.error || 'Errore durante la creazione account.');
     }
 
-    successMessage.value = 'Benvenuto in Urban Access! Registrazione completata.';
-    // Reset campi
-    nome.value = ''; cognome.value = ''; email.value = ''; password.value = ''; confirmPassword.value = '';
+    successMessage.value = 'Benvenuto! Registrazione completata con successo.';
+    
+    nome.value = ''; cognome.value = ''; email.value = ''; password.value = ''; 
+    confirmPassword.value = ''; esigenzeAccessibilita.value = false; ruolo.value = 'cittadino';
   } catch (error) {
     serverError.value = error.message === 'Failed to fetch' 
-      ? 'Il server non risponde. Verifica che il backend sia attivo.' 
+      ? 'Il server non risponde. Riprova più tardi.' 
       : error.message;
   } finally {
     isLoading.value = false;
@@ -183,9 +232,10 @@ const handleRegister = async () => {
 
 <style scoped>
 .fade-enter-active, .fade-leave-active {
-  transition: opacity 0.5s ease;
+  transition: opacity 0.4s ease;
 }
 .fade-enter-from, .fade-leave-to {
   opacity: 0;
+  transform: translateY(-10px);
 }
 </style>
