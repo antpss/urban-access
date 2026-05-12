@@ -136,17 +136,17 @@ paths:
         - Authentication
       summary: Registra un nuovo proprietario di struttura
       description: |
-        **NON ANCORA IMPLEMENTATO IN SPRINT 1.**
-        La registrazione dei proprietari sarà disponibile in Sprint 2 (US9).
-        Attualmente restituisce sempre `501 Not Implemented`.
-
-        Il contratto del payload è già definito per documentazione futura,
-        così l'implementazione in Sprint 2 potrà essere puramente additiva.
+        Crea un nuovo account di tipo `proprietario` nel sistema.
 
         **Differenze rispetto al cittadino:**
         - Richiede `partitaIVA` (11 cifre, identificatore fiscale italiano).
         - Richiede `ragioneSociale` (denominazione legale dell'attività).
 
+        **Comportamento server-side:**
+        - L'email viene normalizzata (lowercase, trim) prima del salvataggio.
+        - La password viene salvata in formato hashato (bcrypt, 12 salt rounds).
+        - `partitaIVA` deve essere univoca nel sistema.
+        - `strutture` inizializzato come array vuoto.
       operationId: registraProprietario
       requestBody:
         required: true
@@ -163,15 +163,79 @@ paths:
               partitaIVA: '12345678901'
               ragioneSociale: Bar Centrale S.r.l.
       responses:
-        '501':
-          description: Endpoint non ancora implementato.
+        '201':
+          description: Proprietario registrato con successo.
+          headers:
+            Location:
+              schema:
+                type: string
+              description: URL della risorsa appena creata.
+              example: /api/v1/users/65a3f4e7b8d9c1f4a2e5b6c8
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RegisterResponse'
+              example:
+                message: Registrazione avvenuta con successo
+                user:
+                  _id: 65a3f4e7b8d9c1f4a2e5b6c8
+                  email: proprietario@example.com
+                  nome: Luigi
+                  cognome: Bianchi
+                  ruolo: proprietario
+                  createdAt: '2026-05-12T14:35:00.000Z'
+        '400':
+          description: |
+            Dati di input non validi. Possibili cause:
+            - campo obbligatorio mancante (email, password, nome, cognome, partitaIVA, ragioneSociale)
+            - formato email non valido
+            - password troppo corta (< 8 caratteri) o troppo lunga (> 128 caratteri)
+            - formato partitaIVA non valido (deve essere esattamente 11 cifre numeriche)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ValidationError'
+              examples:
+                campoMancante:
+                  summary: Campo obbligatorio mancante
+                  value:
+                    error: Validazione fallita
+                    details:
+                      - field: partitaIVA
+                        message: partitaIVA è obbligatorio
+                formatoPartitaIVA:
+                  summary: Formato partitaIVA non valido
+                  value:
+                    error: Validazione fallita
+                    details:
+                      - field: partitaIVA
+                        message: Partita IVA deve essere di esattamente 11 cifre numeriche
+        '409':
+          description: |
+            Conflitto su un campo univoco. Possibili cause:
+            - Email già registrata nel sistema.
+            - Partita IVA già registrata nel sistema.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              examples:
+                emailDuplicata:
+                  summary: Email già esistente
+                  value:
+                    error: Email già registrata
+                partitaIVADuplicata:
+                  summary: Partita IVA già esistente
+                  value:
+                    error: Partita IVA già registrata
+        '500':
+          description: Errore interno del server.
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/Error'
               example:
-                error: Endpoint non ancora implementato
-                message: La registrazione dei proprietari sarà disponibile in Sprint 2
+                error: Errore interno del server
 
 components:
   schemas:
@@ -225,11 +289,13 @@ components:
         email:
           type: string
           format: email
+          description: Email univoca. Verrà normalizzata in lowercase e trim.
           maxLength: 254
           example: proprietario@example.com
         password:
           type: string
           format: password
+          description: Password in chiaro. Verrà salvata in formato hashato lato server.
           minLength: 8
           maxLength: 128
           example: SecurePassword12345
