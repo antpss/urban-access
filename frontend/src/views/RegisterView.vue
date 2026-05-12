@@ -59,17 +59,6 @@
           </div>
         </div>
 
-        <div v-if="ruolo === 'cittadino'" class="flex items-start bg-amber-50/60 p-4 rounded-xl border border-amber-100 transition-all hover:bg-amber-50">
-          <div class="flex items-center h-5 mt-0.5">
-            <input id="esigenze" type="checkbox" v-model="esigenzeAccessibilita"
-              class="focus:ring-amber-500 h-5 w-5 text-amber-500 border-amber-300 rounded cursor-pointer transition-colors" />
-          </div>
-          <div class="ml-3 text-sm">
-            <label for="esigenze" class="font-bold text-amber-900 cursor-pointer">Ho esigenze di accessibilità</label>
-            <p class="text-amber-700 text-xs mt-1 leading-relaxed">Spunta la casella per sbloccare la personalizzazione del tuo profilo di accesibilità all'interno dell'app.</p>
-          </div>
-        </div>
-
         <div>
           <label for="email" class="block text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-1.5 ml-1">Email</label>
           <input id="email" type="email" required v-model="email" @input="validateEmail"
@@ -138,8 +127,6 @@ const email = ref('');
 const password = ref('');
 const confirmPassword = ref('');
 
-const esigenzeAccessibilita = ref(false); 
-
 const emailError = ref('');
 const passwordError = ref('');
 const confirmPasswordError = ref('');
@@ -199,10 +186,6 @@ const handleRegister = async () => {
     ruolo: ruolo.value
   };
 
-  if (ruolo.value === 'cittadino') {
-    payload.richiedeProfiloDisabilita = esigenzeAccessibilita.value;
-  }
-
   try {
     const response = await fetch('http://localhost:7000/api/v1/auth/register', {
       method: 'POST',
@@ -219,7 +202,7 @@ const handleRegister = async () => {
     successMessage.value = 'Benvenuto! Registrazione completata con successo.';
     
     nome.value = ''; cognome.value = ''; email.value = ''; password.value = ''; 
-    confirmPassword.value = ''; esigenzeAccessibilita.value = false; ruolo.value = 'cittadino';
+    confirmPassword.value = ''; ruolo.value = 'cittadino';
   } catch (error) {
     serverError.value = error.message === 'Failed to fetch' 
       ? 'Il server non risponde. Riprova più tardi.' 
