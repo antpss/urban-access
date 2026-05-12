@@ -165,7 +165,7 @@ const handleRegister = async () => {
     const data = await response.json().catch(() => ({}));
 
     if (!response.ok) {
-      throw new Error(data.message || 'Errore durante la creazione account.');
+      throw new Error(data.error || 'Errore durante la creazione account.');
     }
 
     successMessage.value = 'Benvenuto in Urban Access! Registrazione completata.';
