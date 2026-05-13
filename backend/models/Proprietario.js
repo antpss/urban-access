@@ -2,7 +2,7 @@ const mongoose = require('mongoose');
 const User = require('./User');
 
 const proprietarioStrutturaSchema = new mongoose.Schema({
-    //attributi classe proprietario (estende User)
+    // attributi classe proprietario (estende User)
     partitaIVA: {
         type: String,
         required: [true, 'campo partita IVA obbligatorio'],

@@ -2,7 +2,7 @@ const mongoose = require('mongoose');
 const bcrypt = require('bcrypt');
 
 const userSchema = new mongoose.Schema({
-    //attributi classe utente (superclasse)
+    // attributi classe utente (superclasse)
     email: { 
         type: String, 
         required: [true, 'campo email obbligatorio'],
@@ -33,12 +33,12 @@ const userSchema = new mongoose.Schema({
 }, {timestamps: true, discriminatorKey: 'ruolo', collection: 'users'});
 
 
-//middleware: Hashing della password prima del salvataggio
+// middleware: Hashing della password prima del salvataggio
 userSchema.pre('save', async function() {
     // Se la password non è stata modificata, esci (non serve next())
     if (!this.isModified('password')) return;
 
-    //hashing della password
+    // hashing della password
     this.password = await bcrypt.hash(this.password, 12);
 });
 

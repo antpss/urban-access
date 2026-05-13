@@ -3,7 +3,7 @@ const Proprietario = require('../models/Proprietario');
 const User = require('../models/User');
 
 
-//funzione per ritornare un oggetto user senza i campi strettamente necessari (password, __v, notifiche)
+// funzione per ritornare un oggetto user senza i campi strettamente necessari (password, __v, notifiche)
 function sanitizeUser(userDoc) {
     const obj = userDoc.toObject();
     delete obj.password;
@@ -12,7 +12,7 @@ function sanitizeUser(userDoc) {
     return obj;
 }
 
-//gestore errori di validazione di Mongoose - centralizzato per evitare duplicazione
+// handler errori condiviso per validazione
 function handleError(err, res) {
     if (err.name === 'ValidationError') {
         const details = Object.values(err.errors).map(e => ({
@@ -24,17 +24,14 @@ function handleError(err, res) {
             details
         });
     }
-    //gestione errore di duplicato (es. partitaIVA o email gia' presenti)
-    // if (err.code === 11000) {
-    //     const field = Object.keys(err.keyPattern)[0];
-    //     return res.status(409).json({ error: `Valore per il campo "${field}" gia' esistente` });
-    // }
+
     console.error(err);
     return res.status(500).json({ error: 'Errore interno del server' });
 }
 
-//REGISTRAZIONE CITTADINO - POST /api/v1/auth/register
-exports.register = async (req, res) => {
+// registra cittadino
+// POST /api/v1/auth/register/citizen
+exports.registerCitizen = async (req, res) => {
     try {
         const existing = await User.findOne({email: req.body.email});
         if (existing) {
@@ -66,7 +63,8 @@ exports.register = async (req, res) => {
     }
 };
 
-//REGISTRAZIONE PROPRIETARIO - POST /api/v1/auth/register/owner
+// registrazione proprietario
+// POST /api/v1/auth/register/owner
 exports.registerOwner = async (req, res) => {
     try {
         const existing = await User.findOne({email: req.body.email});
@@ -78,7 +76,7 @@ exports.registerOwner = async (req, res) => {
             return res.status(409).json({ error: 'Partita IVA già esistente' });
         }
         
-        //il proprietario richiede partitaIVA come campo specifico
+        // il proprietario richiede partitaIVA come campo specifico
         const {email, password, nome, cognome, partitaIVA} = req.body;
         const userData = {
             email: email,
