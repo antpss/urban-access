@@ -227,7 +227,7 @@ paths:
         - Authentication
       summary: Login utente
       description: |
-        Autentica un utente esistente (cittadino, proprietario o operatore) tramite
+        Autentica un utente esistente (cittadino o proprietario) tramite
         email e password, restituendo un **token JWT** da usare nelle richieste successive.
 
         **Comportamento server-side:**
