@@ -6,9 +6,10 @@ const userSchema = new mongoose.Schema({
     email: { 
         type: String, 
         required: [true, 'campo email obbligatorio'],
-        unique: [true, 'email già esistente'], 
+        unique: true,
         lowercase: true,
         trim: true,
+        select: false,
         match: [/^\S+@\S+\.\S+$/, 'formato email non valido'] 
     },
     password: { 
@@ -41,5 +42,10 @@ userSchema.pre('save', async function() {
     // hashing della password
     this.password = await bcrypt.hash(this.password, 12);
 });
+
+// compara password inserita con quella salvata
+userSchema.methods.comparePassword = function(insertedPassword) {
+    return bcrypt.compare(insertedPassword, this.password);
+};
 
 module.exports = mongoose.model('User', userSchema);
