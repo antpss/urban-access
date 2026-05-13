@@ -25,10 +25,10 @@ function handleError(err, res) {
         });
     }
     //gestione errore di duplicato (es. partitaIVA o email gia' presenti)
-    if (err.code === 11000) {
-        const field = Object.keys(err.keyPattern)[0];
-        return res.status(409).json({ error: `Valore per il campo "${field}" gia' esistente` });
-    }
+    // if (err.code === 11000) {
+    //     const field = Object.keys(err.keyPattern)[0];
+    //     return res.status(409).json({ error: `Valore per il campo "${field}" gia' esistente` });
+    // }
     console.error(err);
     return res.status(500).json({ error: 'Errore interno del server' });
 }
@@ -73,7 +73,11 @@ exports.registerOwner = async (req, res) => {
         if (existing) {
             return res.status(409).json({ error: 'Email già esistente' });
         }
-
+        const existing1 = await User.findOne({partitaIVA: req.body.partitaIVA});
+        if (existing1) {
+            return res.status(409).json({ error: 'Partita IVA già esistente' });
+        }
+        
         //il proprietario richiede partitaIVA come campo specifico
         const {email, password, nome, cognome, partitaIVA} = req.body;
         const userData = {
