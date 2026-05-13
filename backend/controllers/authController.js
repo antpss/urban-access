@@ -1,3 +1,4 @@
+const jwt = require('jsonwebtoken');
 const Cittadino = require('../models/Cittadino');
 const Proprietario = require('../models/Proprietario');
 const User = require('../models/User');
@@ -98,6 +99,51 @@ exports.registerOwner = async (req, res) => {
             .location('/api/v1/users/' + newProprietario._id)
             .json({ message: 'Registrazione avvenuta con successo', user: userResponse });
     
+    } catch (err) {
+        return handleError(err, res);
+    }
+};
+
+// login utente
+// POST /api/v1/auth/login
+exports.login = async (req, res) => {
+    try {
+        const {email, password} = req.body;
+        if(!email || !password) {
+            return res.status(400).json({
+                error: 'Validazione fallita',
+                details: [
+                    (!email ? [{field: 'email', message: 'campo email obbligatorio'}] : []),
+                    (!password ? [{field: 'password', message: 'campo password obbligatorio'}] : [])
+                ]
+            });
+        }
+
+        // cerca utente per email e includi password per il confronto
+        const user = await User.findOne({email: email.toLowerCase().trim()}).select('+password');
+        if (!user) {
+            return res.status(401).json({ error: 'Credenziali non valide' });
+        }
+
+        const isMatch = await user.comparePassword(password);
+        if (!isMatch) {
+            return res.status(401).json({ error: 'Credenziali non valide' });
+        }
+
+        // generazione token JWT
+        const token = jwt.sign(
+            {userId: user._id, ruolo: user.ruolo},
+            process.env.JWT_SECRET,
+            // scadenza token in 24H
+            {expiresIn: 86400}
+        );
+
+        console.log('Login effettuato: ${user.email} (${user.ruolo})');
+        return res.status(200).json({
+            message: 'Login avvenuto con successo',
+            token,
+            user: sanitizeUser(user)
+        });
     } catch (err) {
         return handleError(err, res);
     }
