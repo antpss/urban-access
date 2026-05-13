@@ -221,8 +221,133 @@ paths:
               example:
                 error: Errore interno del server
 
+  /auth/login:
+    post:
+      tags:
+        - Authentication
+      summary: Login utente
+      description: |
+        Autentica un utente esistente (cittadino, proprietario o operatore) tramite
+        email e password, restituendo un **token JWT** da usare nelle richieste successive.
+
+        **Comportamento server-side:**
+        - L'email viene normalizzata (lowercase, trim) prima della ricerca.
+        - La password viene confrontata con l'hash bcrypt salvato in DB.
+        - In caso di successo viene generato un token JWT firmato con `JWT_SECRET`,
+          contenente `userId`, `ruolo` e scadenza a **24 ore**.
+        - Il token deve essere incluso nell'header `Authorization: Bearer <token>`
+          per accedere agli endpoint protetti.
+
+        **Sicurezza:**
+        - In caso di email non trovata o password errata viene restituito sempre
+          `401 Unauthorized` con messaggio generico, senza specificare quale
+          dei due campi è errato (prevenzione user enumeration).
+      operationId: loginUtente
+      requestBody:
+        required: true
+        description: Credenziali di accesso.
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LoginRequest'
+            example:
+              email: mario.rossi@example.com
+              password: SecurePassword12345
+      responses:
+        '200':
+          description: Login effettuato con successo. Restituisce il token JWT e i dati pubblici dell'utente.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LoginResponse'
+              example:
+                message: Login effettuato con successo
+                token: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VySWQiOiI2NWEzZjRlN2I4ZDljMWY0YTJlNWI2YzciLCJydW9sbyI6ImNpdHRhZGlubyIsImlhdCI6MTc0NzA1NjIwMCwiZXhwIjoxNzQ3MTQyNjAwfQ.example
+                user:
+                  _id: 65a3f4e7b8d9c1f4a2e5b6c7
+                  email: mario.rossi@example.com
+                  nome: Mario
+                  cognome: Rossi
+                  ruolo: cittadino
+                  createdAt: '2026-05-12T14:30:00.000Z'
+        '400':
+          description: |
+            Dati di input non validi. Possibili cause:
+            - campo obbligatorio mancante (email o password)
+            - formato email non valido
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ValidationError'
+              example:
+                error: Validazione fallita
+                details:
+                  - field: email
+                    message: email è obbligatoria
+        '401':
+          description: |
+            Credenziali non valide.
+            Il messaggio è volutamente generico per non rivelare se l'email
+            esiste o meno nel sistema (prevenzione user enumeration attack).
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                error: Credenziali non valide
+        '500':
+          description: Errore interno del server.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                error: Errore interno del server
+
 components:
   schemas:
+
+    LoginRequest:
+          type: object
+          description: Payload per il login di un utente esistente.
+          required:
+            - email
+            - password
+          properties:
+            email:
+              type: string
+              format: email
+              description: Email dell'account registrato. Verrà normalizzata in lowercase e trim.
+              maxLength: 254
+              example: mario.rossi@example.com
+            password:
+              type: string
+              format: password
+              description: Password in chiaro. Verrà confrontata con l'hash bcrypt in DB.
+              minLength: 8
+              maxLength: 128
+              example: SecurePassword12345
+
+    LoginResponse:
+      type: object
+      description: Risposta in caso di login avvenuto con successo.
+      required:
+        - message
+        - token
+        - user
+      properties:
+        message:
+          type: string
+          example: Login effettuato con successo
+        token:
+          type: string
+          description: |
+            Token JWT firmato. Scade dopo 24 ore.
+            Da includere nelle richieste successive come:
+            `Authorization: Bearer <token>`
+          example: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
+        user:
+          $ref: '#/components/schemas/UserPublic'
 
     RegisterCitizenRequest:
       type: object
@@ -365,3 +490,4 @@ components:
                 type: string
               message:
                 type: string
+
