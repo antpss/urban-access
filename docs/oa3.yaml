@@ -102,6 +102,8 @@ paths:
             - campo obbligatorio mancante (email, password, nome, cognome)
             - formato email non valido
             - password troppo corta (< 8 caratteri) o troppo lunga (> 128 caratteri)
+
+            In questo caso possiamo vedere come l'utente ha inserito la mail con formato non valido e la password di lunghezza troppo corta.
           content:
             application/json:
               schema:
@@ -189,25 +191,19 @@ paths:
             - formato email non valido
             - password troppo corta (< 8 caratteri) o troppo lunga (> 128 caratteri)
             - formato partitaIVA non valido (deve essere esattamente 11 cifre numeriche)
+
+            In questo caso possiamo vedere come l'utente ha inserito la mail con formato non valido e la password di lunghezza troppo corta.
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/ValidationError'
-              examples:
-                campoMancante:
-                  summary: Campo obbligatorio mancante
-                  value:
-                    error: Validazione fallita
-                    details:
-                      - field: partitaIVA
-                        message: partitaIVA è obbligatorio
-                formatoPartitaIVA:
-                  summary: Formato partitaIVA non valido
-                  value:
-                    error: Validazione fallita
-                    details:
-                      - field: partitaIVA
-                        message: Partita IVA deve essere di esattamente 11 cifre numeriche
+              example:
+                error: Validazione fallita
+                details:
+                  - field: email
+                    message: Formato email non valido
+                  - field: password
+                    message: Password minimo 8 caratteri
         '409':
           description: Email già registrata nel sistema.
           content:

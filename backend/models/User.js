@@ -2,7 +2,7 @@ const mongoose = require('mongoose');
 const bcrypt = require('bcrypt');
 
 const userSchema = new mongoose.Schema({
-    // attributi classe utente (superclasse)
+    //attributi classe utente (superclasse)
     email: { 
         type: String, 
         required: [true, 'campo email obbligatorio'],
@@ -13,8 +13,9 @@ const userSchema = new mongoose.Schema({
     },
     password: { 
         type: String, 
-        required: true, 
-        minlength: [8, 'lunghezza minima password 8 caratteri'] 
+        required: [true, 'campo password obbligatorio'], 
+        minlength: [8, 'lunghezza minima password 8 caratteri'],
+        maxlength: [128, 'lunghezza massima password 128 caratteri'] 
     },
     notifiche: [{
         messaggio: String,
@@ -32,12 +33,12 @@ const userSchema = new mongoose.Schema({
 }, {timestamps: true, discriminatorKey: 'ruolo', collection: 'users'});
 
 
-// Middleware: Hashing della password prima del salvataggio
+//middleware: Hashing della password prima del salvataggio
 userSchema.pre('save', async function() {
     // Se la password non è stata modificata, esci (non serve next())
     if (!this.isModified('password')) return;
 
-    // Hashing della password
+    //hashing della password
     this.password = await bcrypt.hash(this.password, 12);
 });
 

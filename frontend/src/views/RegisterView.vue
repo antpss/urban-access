@@ -151,17 +151,17 @@ const isLoading = ref(false);
 const showPassword = ref(false);
 const showConfirmPassword = ref(false);
 
-// URL di base delle API - in futuro estraibile in un file di config (.env)
+//URL di base delle API - in futuro estraibile in un file di config (.env)
 const API_BASE_URL = '/api/v1';
 
 const hasErrors = computed(() => {
-  // Campi sempre obbligatori
+  //campi sempre obbligatori
   const baseInvalid = passwordError.value !== '' || 
          emailError.value !== '' || 
          confirmPasswordError.value !== '' || 
          !nome.value || !cognome.value || !email.value || !password.value || !confirmPassword.value;
   
-  // Se è proprietario, controlla anche partita IVA
+  //se è proprietario, controlla anche partita IVA
   if (ruolo.value === 'proprietario') {
     return baseInvalid || partitaIVAError.value !== '' || !partitaIVA.value;
   }
@@ -195,7 +195,7 @@ const validateConfirmPassword = () => {
 };
 
 const validatePartitaIVA = () => {
-  // La partita IVA italiana deve essere di esattamente 11 cifre numeriche
+  //la partita IVA italiana deve essere di esattamente 11 cifre numeriche
   const pivaRegex = /^\d{11}$/;
   if (partitaIVA.value.length > 0 && !pivaRegex.test(partitaIVA.value)) {
     partitaIVAError.value = 'La partita IVA deve essere composta da 11 cifre numeriche.';
@@ -213,12 +213,12 @@ const handleRegister = async () => {
   serverError.value = '';
   successMessage.value = '';
 
-  // Endpoint dinamico in base al ruolo selezionato nella tendina
+  //endpoint dinamico in base al ruolo selezionato nella tendina
   const endpointUrl = ruolo.value === 'cittadino'
     ? `${API_BASE_URL}/auth/register/citizen`
     : `${API_BASE_URL}/auth/register/owner`;
 
-  // Payload base, comune a entrambi i ruoli
+  //payload base, comune a entrambi i ruoli
   const payload = {
     nome: nome.value,
     cognome: cognome.value,
@@ -226,7 +226,7 @@ const handleRegister = async () => {
     password: password.value
   };
 
-  // Aggiunta del campo partitaIVA solo per il proprietario
+  //aggiunta del campo partitaIVA solo per il proprietario
   if (ruolo.value === 'proprietario') {
     payload.partitaIVA = partitaIVA.value;
   }
@@ -246,7 +246,7 @@ const handleRegister = async () => {
 
     successMessage.value = 'Benvenuto! Registrazione completata con successo.';
     
-    // Reset di tutti i campi
+    //reset di tutti i campi
     nome.value = ''; cognome.value = ''; email.value = ''; password.value = ''; 
     confirmPassword.value = ''; partitaIVA.value = ''; ruolo.value = 'cittadino';
   } catch (error) {

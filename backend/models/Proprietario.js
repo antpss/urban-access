@@ -2,13 +2,13 @@ const mongoose = require('mongoose');
 const User = require('./User');
 
 const proprietarioStrutturaSchema = new mongoose.Schema({
-    // attributi classe proprietario (estende User)
+    //attributi classe proprietario (estende User)
     partitaIVA: {
         type: String,
         required: [true, 'campo partita IVA obbligatorio'],
         unique: true,
         trim: true,
-        match: [/^\d{11}$/, 'formato partita IVA non valido'] // la partita IVA deve essere di 11 cifre
+        match: [/^\d{11}$/, 'formato partita IVA non valido'] //la partita IVA deve essere di 11 cifre
     },
     strutture: [{
         type: mongoose.Schema.Types.ObjectId,
