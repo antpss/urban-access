@@ -19,12 +19,12 @@ function handleError(err, res) {
             field: e.path,
             message: e.message
         }));
-        return res.status(400).json({
-            error: 'Validazione fallita',
-            details
-        });
+        return res.status(400).json({ error: 'Validazione fallita', details });
     }
-
+    if (err.code === 11000) {
+        const field = Object.keys(err.keyPattern)[0];
+        return res.status(409).json({ error: `"${field}" già esistente` });
+    }
     console.error(err);
     return res.status(500).json({ error: 'Errore interno del server' });
 }
@@ -33,10 +33,6 @@ function handleError(err, res) {
 // POST /api/v1/auth/register/citizen
 exports.registerCitizen = async (req, res) => {
     try {
-        const existing = await User.findOne({email: req.body.email});
-        if (existing) {
-            return res.status(409).json({ error: 'Email già esistente' });
-        }
 
         const {email, password, nome, cognome} = req.body;
         const userData = {
@@ -67,14 +63,6 @@ exports.registerCitizen = async (req, res) => {
 // POST /api/v1/auth/register/owner
 exports.registerOwner = async (req, res) => {
     try {
-        const existing = await User.findOne({email: req.body.email});
-        if (existing) {
-            return res.status(409).json({ error: 'Email già esistente' });
-        }
-        const existing1 = await User.findOne({partitaIVA: req.body.partitaIVA});
-        if (existing1) {
-            return res.status(409).json({ error: 'Partita IVA già esistente' });
-        }
         
         // il proprietario richiede partitaIVA come campo specifico
         const {email, password, nome, cognome, partitaIVA} = req.body;
