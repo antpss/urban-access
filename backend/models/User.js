@@ -9,14 +9,14 @@ const userSchema = new mongoose.Schema({
         unique: true,
         lowercase: true,
         trim: true,
-        select: false,
         match: [/^\S+@\S+\.\S+$/, 'formato email non valido'] 
     },
     password: { 
         type: String, 
         required: [true, 'campo password obbligatorio'], 
         minlength: [8, 'lunghezza minima password 8 caratteri'],
-        maxlength: [128, 'lunghezza massima password 128 caratteri'] 
+        maxlength: [128, 'lunghezza massima password 128 caratteri'],
+        select: true
     },
     notifiche: [{
         messaggio: String,

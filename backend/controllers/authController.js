@@ -109,14 +109,16 @@ exports.registerOwner = async (req, res) => {
 exports.login = async (req, res) => {
     try {
         const {email, password} = req.body;
+
+        if(typeof email !== 'string' || typeof password !== 'string'){
+            return res.status(400).json({ error: 'Email e password devono essere stringhe' });
+        }
+
         if(!email || !password) {
-            return res.status(400).json({
-                error: 'Validazione fallita',
-                details: [
-                    (!email ? [{field: 'email', message: 'campo email obbligatorio'}] : []),
-                    (!password ? [{field: 'password', message: 'campo password obbligatorio'}] : [])
-                ]
-            });
+            const details = [];
+            if (!email) details.push({ field: 'email', message: 'campo email obbligatorio' });
+            if (!password) details.push({ field: 'password', message: 'campo password obbligatorio' });
+            return res.status(400).json({ error: 'Validazione fallita', details });
         }
 
         // cerca utente per email e includi password per il confronto
@@ -138,7 +140,7 @@ exports.login = async (req, res) => {
             {expiresIn: 86400}
         );
 
-        console.log('Login effettuato: ${user.email} (${user.ruolo})');
+        console.log(`Login effettuato: ${user.email} (${user.ruolo})`);
         return res.status(200).json({
             message: 'Login avvenuto con successo',
             token,
