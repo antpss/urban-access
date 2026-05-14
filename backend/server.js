@@ -6,6 +6,9 @@ const path = require('path');
 require('./models/User');
 require('./models/Cittadino');
 require('./models/Proprietario');
+require('./models/Segnalazione');
+require('./models/SegnalazionePubblica');
+
 
 const authRoutes = require('./routes/auth');
 const usersRoutes = require('./routes/users');
@@ -43,6 +46,9 @@ app.use('/api/v1/users', usersRoutes);
 app.use('/api', (req, res) => {
     res.status(404).json({ error: 'Endpoint non trovato' });
 });
+
+//assets statici
+app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 
 //frontend SPA (fallback)
 app.use(express.static(path.join(__dirname, '../frontend/dist')));
