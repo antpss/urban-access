@@ -59,21 +59,12 @@
         </form>
     </div>
     </div>
-    <div v-else class="min-h-screen w-full bg-white flex items-center justify-center">
-    <div class="text-center py-10">
-        <h2 class="text-3xl font-extrabold text-slate-800 tracking-tight mb-2">Ciao {{ utenteNome }},</h2>
-        <p class="mt-4 text-slate-500">Bentornato! Sei pronto a tracciare nuove barriere oggi?</p>
-        <button @click="logout" class="mt-8 text-sm font-bold text-slate-500 hover:text-slate-700 transition-colors underline">
-        Non sei tu? Esci
-        </button>
-    </div>
-    </div>
 </template>
 
 <script setup>
 import { ref, computed } from 'vue';
 import { useRouter } from 'vue-router';
-import { setSession, clearSession, isAuthenticated, getUser } from '../services/auth';
+import { setSession } from '../services/auth';
 
 const router = useRouter();
 
@@ -83,18 +74,11 @@ const serverError = ref('');
 const isLoading = ref(false);
 const showPassword = ref(false);
 
-const isLoggedIn = ref(isAuthenticated());
-const utenteNome = ref(getUser()?.nome || '');
-
 const API_BASE_URL = '/api/v1';
 
-const hasErrors = computed(() => {
-  return !email.value || !password.value;
-});
+const hasErrors = computed(() => !email.value || !password.value);
 
-const clearError = () => {
-  serverError.value = '';
-};
+const clearError = () => { serverError.value = ''; };
 
 const handleLogin = async () => {
   if (hasErrors.value) return;
@@ -111,41 +95,23 @@ const handleLogin = async () => {
 
     const data = await response.json().catch(() => ({}));
 
-    if (response.status === 500) {
-        throw new Error(data.error || "Errore interno del server");
-    }
-
     if (!response.ok) {
       // cattura l'errore generico come "Credenziali non valide" 
       throw new Error(data.error || data.message || "Errore durante l'accesso.");
     }
 
     setSession(data.token, data.user);
-
-    // estrai i dati utente dalla response
-    utenteNome.value = data.user.nome;
-    isLoggedIn.value = true;
-    
+    router.push('/home');
   } catch (error) {
-    serverError.value = error.message === 'Failed to fetch' 
-      ? 'Il server non risponde. Riprova più tardi.' 
+    serverError.value = error.message === 'Failed to fetch'
+      ? 'Il server non risponde. Riprova più tardi.'
       : error.message;
   } finally {
     isLoading.value = false;
   }
 };
 
-const logout = () => {
-    clearSession();
-    isLoggedIn.value = false;
-    email.value = '';
-    password.value = '';
-    utenteNome.value = '';
-};
-
-const goToRegister = () => {
-  router.push('/register');
-};
+const goToRegister = () => router.push('/register');
 </script>
 
 <style scoped>

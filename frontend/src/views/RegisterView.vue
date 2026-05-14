@@ -139,6 +139,7 @@
 <script setup>
 import { ref, computed } from 'vue';
 import { useRouter } from 'vue-router';
+import { setSession } from '../services/auth';
 
 const router = useRouter();
 
@@ -258,14 +259,19 @@ const handleRegister = async () => {
       throw new Error(data.message || data.error || 'Errore durante la creazione account.');
     }
 
-    successMessage.value = 'Benvenuto! Registrazione completata con successo.';
-    
-    //reset di tutti i campi
-    nome.value = ''; cognome.value = ''; email.value = ''; password.value = ''; 
-    confirmPassword.value = ''; partitaIVA.value = ''; ruolo.value = 'cittadino';
+    //auto-login: salvo sessione
+    setSession(data.token, data.user);
+
+    //cittadino -> profile setup
+    //proprietario -> home
+    if (ruolo.value === 'cittadino') {
+      router.push('/select-disability');
+    } else {
+      router.push('/home');
+    }
   } catch (error) {
-    serverError.value = error.message === 'Failed to fetch' 
-      ? 'Il server non risponde. Riprova più tardi.' 
+    serverError.value = error.message === 'Failed to fetch'
+      ? 'Il server non risponde. Riprova più tardi.'
       : error.message;
   } finally {
     isLoading.value = false;

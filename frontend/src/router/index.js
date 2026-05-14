@@ -1,14 +1,12 @@
-import {createRouter, createWebHistory} from 'vue-router';
+import { createRouter, createWebHistory } from 'vue-router';
 import RegisterView from '../views/RegisterView.vue';
 import LoginView from '../views/LoginView.vue';
 import SelectDisability from '../views/SelectDisability.vue';
-import { isAuthenticated } from '../services/auth';
+import Home from '../views/Home.vue';
+import { isAuthenticated, getUser } from '../services/auth';
 
 const routes = [
-    {
-        path: '/',
-        redirect: '/login'
-    },
+    { path: '/', redirect: '/login' },
     {
         path: '/register',
         name: 'Register',
@@ -25,7 +23,13 @@ const routes = [
         path: '/select-disability',
         name: 'SelectDisability',
         component: SelectDisability,
-        meta: {requiresAuth: true, requiresRole: 'cittadino'}
+        meta: {requiresAuth: true, role: 'cittadino'}
+    },
+    {
+        path: '/home',
+        name: 'Home',
+        component: Home,
+        meta: {requiresAuth: true}
     }
 ];
 
@@ -36,6 +40,7 @@ const router = createRouter({
 
 router.beforeEach((to, from, next) => {
     const authed = isAuthenticated();
+    const user = getUser();
 
     // verifica tentativi di accesso se non autenticato a pagine protette
     if (to.meta.requiresAuth && !authed) {
@@ -43,18 +48,15 @@ router.beforeEach((to, from, next) => {
     }
 
     // verifica tentativi di accesso se autenticato a pagine per ospiti
-    if (to.meta.requiresGuest && authed) {
-        return next({ name: 'Home' });  
+    if (to.meta.requireGuest && authed) {
+        return next({ name: 'Home' });
     }
 
     
     if (to.meta.role && user?.ruolo !== to.meta.role) {
         return next({ name: 'Home' });
     }
-
-
-    next();
-
+    return next();
 });
 
 export default router;
