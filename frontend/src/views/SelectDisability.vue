@@ -70,7 +70,7 @@ const handleSubmit = async () => {
   serverError.value = '';
 
   try {
-    const response = await authFetch(`${API_BASE_URL}/users/me/disability`, {
+    const response = await authFetch(`${API_BASE_URL}/users/me`, {
       method: 'PATCH',
       body: JSON.stringify({ profiloDisabilita: selezionati.value })
     });
@@ -85,7 +85,7 @@ const handleSubmit = async () => {
     setSession(getToken(), data.user);
     router.push('/home');
   } catch (err) {
-    
+
     serverError.value = err.message === 'Failed to fetch'
       ? 'Il server non risponde. Riprova più tardi.'
       : err.message;
