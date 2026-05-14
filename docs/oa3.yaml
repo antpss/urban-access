@@ -26,7 +26,13 @@ info:
     I proprietari aggiungono `partitaIVA` poiché sono dati legalmente
     necessari per identificare un'attività commerciale.
 
-  version: 1.0.0
+    ## Asset statici (foto segnalazioni)
+    Le foto caricate dai cittadini in `POST /segnalazioni/pubbliche` vengono
+    salvate su disco e servite come asset statici da `GET /uploads/segnalazioni/{filename}`.
+    Tali URL **NON** sono parte dell'API REST documentata: sono risorse pubbliche
+    raggiungibili direttamente (consistente con O3 — crowdsourcing pubblico).
+
+  version: 1.1.0
   contact:
     name: Gruppo 17 - UrbanAccess - Andrea Boarini, Antonio Possemato, Giovanni Todesco
     email: decideremaildicontatto@gmail.com
@@ -42,6 +48,11 @@ tags:
     description: Endpoint per registrazione e accesso degli utenti
   - name: Users
     description: Gestione del profilo utente autenticato
+  - name: Segnalazioni
+    description: |
+      Gestione delle segnalazioni di barriere architettoniche e ostacoli.
+      Le segnalazioni si dividono in **pubbliche** (suolo pubblico, immediatamente
+      visibili) e **private** (strutture private, soggette a validazione crowdsourcing).
 
 paths:
 
@@ -304,7 +315,7 @@ paths:
                 $ref: '#/components/schemas/Error'
               example:
                 error: Errore interno del server
-  
+
   /users/me:
     patch:
       tags:
@@ -398,6 +409,168 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/Error'
+
+  /segnalazioni/pubbliche:
+    post:
+      tags:
+        - Segnalazioni
+      summary: Crea una nuova segnalazione su suolo pubblico
+      description: |
+        Permette a un cittadino autenticato di creare una nuova segnalazione
+        di barriera architettonica o ostacolo su **suolo pubblico**.
+        Implementazione di UC1 (US4).
+
+        ## Content-Type
+        L'endpoint accetta **esclusivamente** `multipart/form-data` perché
+        consente l'upload di file binari (foto) insieme ai metadati testuali.
+        L'invio come `application/json` produce errore.
+
+        ## Geolocalizzazione
+        Per coerenza con i limiti tecnici di `multipart/form-data` (che non
+        supporta nativamente oggetti annidati), le coordinate sono trasmesse
+        come due campi piatti `longitudine` e `latitudine` (stringhe numeriche).
+        Il server le converte e assembla un oggetto **GeoJSON `Point`**
+        nel formato `{ type: "Point", coordinates: [lng, lat] }` prima del
+        salvataggio, per essere indicizzabile con un indice MongoDB `2dsphere`.
+
+        ⚠️ **Ordine coordinate**: GeoJSON usa `[longitudine, latitudine]`,
+        contro-intuitivo rispetto a Google Maps. Il client deve passare
+        i due campi separati e non un array, per ridurre il rischio di
+        inversione.
+
+        ## Foto
+        Massimo **5 file**, ciascuno **≤ 5MB**, MIME ammessi:
+        `image/jpeg`, `image/png`, `image/webp`. I file vengono rinominati
+        lato server con un nome randomizzato (prevenzione path traversal e
+        collisioni). Gli URL finali sono raggiungibili tramite
+        `GET /uploads/segnalazioni/{filename}` (asset statico).
+
+        ## Stato iniziale
+        Le segnalazioni pubbliche partono in stato `APERTA` e sono
+        **immediatamente visibili** sulla mappa.
+        Vincolo OCL (Deliverable 2, §3.3): una `SegnalazionePubblica`
+        non può mai trovarsi in stato `IN_VERIFICA`.
+
+        ## Comportamento server-side
+        - L'`autore` viene impostato dal JWT, non dal client (mitigazione spoofing).
+        - In caso di fallimento del salvataggio su DB dopo che i file sono
+          già stati scritti su disco, il server tenta un cleanup dei file orfani.
+      operationId: creaSegnalazionePubblica
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/CreateSegnalazionePubblicaForm'
+            encoding:
+              foto:
+                contentType: image/jpeg, image/png, image/webp
+      responses:
+        '201':
+          description: Segnalazione creata con successo.
+          headers:
+            Location:
+              schema:
+                type: string
+              description: URL della risorsa appena creata.
+              example: /api/v1/segnalazioni/65b4f4e7b8d9c1f4a2e5b6d1
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CreateSegnalazioneResponse'
+              example:
+                message: Segnalazione creata con successo
+                segnalazione:
+                  _id: 65b4f4e7b8d9c1f4a2e5b6d1
+                  tipo: pubblica
+                  descrizione: Marciapiede dissestato in prossimità delle strisce pedonali, impraticabile per sedia a rotelle.
+                  categoria: marciapiede_rotto
+                  stato: APERTA
+                  geolocalizzazione:
+                    type: Point
+                    coordinates: [11.1217, 46.0700]
+                  foto:
+                    - /uploads/segnalazioni/1715760000000_a1b2c3d4e5f6.jpg
+                  autore: 65a3f4e7b8d9c1f4a2e5b6c7
+                  enteCompetente: null
+                  bloccaModifica: false
+                  createdAt: '2026-05-15T09:20:00.000Z'
+                  updatedAt: '2026-05-15T09:20:00.000Z'
+        '400':
+          description: |
+            Dati di input non validi. Possibili cause:
+            - campo obbligatorio mancante (`descrizione`, `categoria`, `longitudine`, `latitudine`)
+            - `categoria` fuori enum
+            - coordinate fuori range (`longitudine` ∉ [-180, 180], `latitudine` ∉ [-90, 90])
+            - coordinate non numeriche
+            - `descrizione` troppo breve (< 10 caratteri) o troppo lunga (> 1000)
+            - Content-Type diverso da `multipart/form-data`
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ValidationError'
+              example:
+                error: Validazione fallita
+                details:
+                  - field: categoria
+                    message: 'categoria "marciapide" non ammessa'
+                  - field: latitudine
+                    message: 'coordinate non valide: lat∈[-90,90]'
+        '401':
+          description: Token mancante, non valido o scaduto.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                error: Token non valido o scaduto
+        '403':
+          description: |
+            Ruolo non autorizzato. Solo il ruolo `cittadino` può creare
+            segnalazioni pubbliche da questo endpoint. Operatori comunali
+            utilizzano un endpoint dedicato (US futura, UC3).
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                error: 'Accesso negato: ruolo non autorizzato'
+        '413':
+          description: |
+            Payload troppo grande. Cause:
+            - singolo file > 5MB
+            - somma totale del body oltre il limite del proxy/server
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ValidationError'
+              example:
+                error: Upload fallito
+                details:
+                  - field: foto
+                    message: File too large
+        '415':
+          description: |
+            MIME type non supportato. Ammessi: `image/jpeg`, `image/png`, `image/webp`.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ValidationError'
+              example:
+                error: Upload fallito
+                details:
+                  - field: foto
+                    message: 'MIME type "application/pdf" non ammesso'
+        '500':
+          description: Errore interno del server.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                error: Errore interno del server
 
 components:
   securitySchemes:
@@ -557,7 +730,7 @@ components:
         createdAt:
           type: string
           format: date-time
-    
+
     UpdateProfileRequest:
       type: object
       description: |
@@ -586,6 +759,175 @@ components:
           example: Profilo aggiornato con successo
         user:
           $ref: '#/components/schemas/UserPublic'
+
+    CategoriaBarriera:
+      type: string
+      description: Categoria della barriera architettonica o ostacolo segnalato.
+      enum:
+        - marciapiede_rotto
+        - ostacolo_temporaneo
+        - auto_sosta_vietata
+        - scalino_non_segnalato
+        - pavimentazione_dissestata
+        - mancanza_rampa
+        - semaforo_non_accessibile
+        - altro
+
+    StatoSegnalazione:
+      type: string
+      description: |
+        Stato del ciclo di vita della segnalazione.
+        Per `SegnalazionePubblica` lo stato `IN_VERIFICA` è proibito
+        (vincolo OCL Deliverable 2, §3.3).
+      enum:
+        - APERTA
+        - IN_VERIFICA
+        - PRESA_IN_CARICO
+        - RISOLTA
+        - ARCHIVIATA
+
+    GeoJSONPoint:
+      type: object
+      description: |
+        Oggetto geografico in formato **GeoJSON Point** (RFC 7946).
+        Usato per indicizzazione spaziale MongoDB tramite indice `2dsphere`.
+      required:
+        - type
+        - coordinates
+      properties:
+        type:
+          type: string
+          enum: [Point]
+          example: Point
+        coordinates:
+          type: array
+          description: |
+            Array di 2 numeri nell'ordine `[longitudine, latitudine]`.
+            Range: longitudine ∈ [-180, 180], latitudine ∈ [-90, 90].
+          minItems: 2
+          maxItems: 2
+          items:
+            type: number
+          example: [11.1217, 46.0700]
+
+    CreateSegnalazionePubblicaForm:
+      type: object
+      description: |
+        Payload `multipart/form-data` per la creazione di una segnalazione
+        pubblica. La geolocalizzazione è espressa come due campi piatti
+        (`longitudine`, `latitudine`) ricomposti server-side in `GeoJSONPoint`.
+      required:
+        - descrizione
+        - categoria
+        - longitudine
+        - latitudine
+      properties:
+        descrizione:
+          type: string
+          minLength: 10
+          maxLength: 1000
+          description: Descrizione testuale della barriera.
+          example: Marciapiede dissestato in prossimità delle strisce pedonali.
+        categoria:
+          $ref: '#/components/schemas/CategoriaBarriera'
+        longitudine:
+          type: string
+          description: |
+            Longitudine GPS (valore numerico trasmesso come stringa per
+            limite di `multipart/form-data`). Range [-180, 180].
+          example: '11.1217'
+        latitudine:
+          type: string
+          description: |
+            Latitudine GPS (valore numerico trasmesso come stringa per
+            limite di `multipart/form-data`). Range [-90, 90].
+          example: '46.0700'
+        foto:
+          type: array
+          description: |
+            Array di file immagine. Massimo 5 file, ciascuno ≤ 5MB.
+            MIME ammessi: `image/jpeg`, `image/png`, `image/webp`.
+            Campo opzionale: una segnalazione può essere creata senza foto.
+          maxItems: 5
+          items:
+            type: string
+            format: binary
+
+    SegnalazionePubblica:
+      type: object
+      description: |
+        Rappresentazione completa di una segnalazione su suolo pubblico
+        (discriminator `tipo = "pubblica"` della collezione `segnalazioni`).
+      required:
+        - _id
+        - tipo
+        - descrizione
+        - categoria
+        - stato
+        - geolocalizzazione
+        - foto
+        - autore
+        - bloccaModifica
+        - createdAt
+        - updatedAt
+      properties:
+        _id:
+          type: string
+          example: 65b4f4e7b8d9c1f4a2e5b6d1
+        tipo:
+          type: string
+          enum: [pubblica]
+          description: Discriminator key. Sempre `pubblica` per questo schema.
+        descrizione:
+          type: string
+        categoria:
+          $ref: '#/components/schemas/CategoriaBarriera'
+        stato:
+          $ref: '#/components/schemas/StatoSegnalazione'
+        geolocalizzazione:
+          $ref: '#/components/schemas/GeoJSONPoint'
+        foto:
+          type: array
+          description: Array di URL relativi delle foto caricate.
+          items:
+            type: string
+            example: /uploads/segnalazioni/1715760000000_a1b2c3d4e5f6.jpg
+        autore:
+          type: string
+          description: ObjectId dell'utente (cittadino) che ha creato la segnalazione.
+          example: 65a3f4e7b8d9c1f4a2e5b6c7
+        enteCompetente:
+          type: string
+          nullable: true
+          description: |
+            ObjectId dell'operatore comunale assegnato. `null` finché non
+            avviene l'assegnazione (US futura, UC3).
+          example: null
+        bloccaModifica:
+          type: boolean
+          description: |
+            Se `true`, la segnalazione è in stato terminale e non
+            modificabile (es. RISOLTA, ARCHIVIATA).
+          example: false
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+
+    CreateSegnalazioneResponse:
+      type: object
+      description: Risposta alla creazione di una segnalazione.
+      required:
+        - message
+        - segnalazione
+      properties:
+        message:
+          type: string
+          example: Segnalazione creata con successo
+        segnalazione:
+          $ref: '#/components/schemas/SegnalazionePubblica'
 
     Error:
       type: object
