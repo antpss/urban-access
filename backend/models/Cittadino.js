@@ -1,12 +1,16 @@
 const mongoose = require('mongoose');
 const User = require('./User');
 
+const tipoDisabilita = ['sediaARotelle', 'cecita', 'sordita', 'ausilioDeambulazione'];
+
 const cittadinoSchema = new mongoose.Schema({
     // attributi classe cittadino (estende User)
     profiloDisabilita: {
-        type: String,
-        enum: ['nessuna', 'motoria', 'visiva', 'uditiva'],
-        default: 'nessuna'
+        type: [{
+            type: String,
+            enum: tipoDisabilita
+        }],
+        default: []
     },
     scoreAffidabilita: {
         type: Number,
@@ -28,3 +32,4 @@ const cittadinoSchema = new mongoose.Schema({
 });
 
 module.exports = User.discriminator('cittadino', cittadinoSchema);
+module.exports.tipoDisabilita = tipoDisabilita;
