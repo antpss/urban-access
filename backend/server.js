@@ -49,9 +49,9 @@ app.use('/api', (req, res) => {
 
 //assets statici
 app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
+app.use(express.static(path.join(__dirname, '../frontend/dist')));
 
 //frontend SPA (fallback)
-app.use(express.static(path.join(__dirname, '../frontend/dist')));
 app.get('/{*splat}', (req, res) => {
     res.sendFile(path.join(__dirname, '../frontend/', 'index.html'));
 });
