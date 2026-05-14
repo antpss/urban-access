@@ -4,7 +4,7 @@ const Proprietario = require('../models/Proprietario');
 const User = require('../models/User');
 
 
-// funzione per ritornare un oggetto user senza i campi strettamente necessari (password, __v, notifiche)
+//rimuove campi sensibili/interni prima dell'invio al client
 function sanitizeUser(userDoc) {
     const obj = userDoc.toObject();
     delete obj.password;
@@ -13,7 +13,16 @@ function sanitizeUser(userDoc) {
     return obj;
 }
 
-// handler errori condiviso per validazione
+//genera un JWT con payload minimo (userId + ruolo), scadenza 2h
+function generaToken(user) {
+    return jwt.sign(
+        { userId: user._id, ruolo: user.ruolo },
+        process.env.JWT_SECRET,
+        { expiresIn: 7200 }
+    );
+}
+
+//handler errori condiviso
 function handleError(err, res) {
     if (err.name === 'ValidationError') {
         const details = Object.values(err.errors).map(e => ({
@@ -30,87 +39,82 @@ function handleError(err, res) {
     return res.status(500).json({ error: 'Errore interno del server' });
 }
 
-// registra cittadino
 // POST /api/v1/auth/register/citizen
 exports.registerCitizen = async (req, res) => {
     try {
-
-        const {email, password, nome, cognome} = req.body;
-        const userData = {
-            email: email,
-            password: password,
-            nome: nome,
-            cognome: cognome
-        };
+        const { email, password, nome, cognome } = req.body;
+        const userData = { email, password, nome, cognome };
 
         const newCittadino = new Cittadino(userData);
         await newCittadino.save();
 
         console.log(`Nuovo cittadino registrato: ${email}`);
 
+        const token = generaToken(newCittadino);
         const userResponse = sanitizeUser(newCittadino);
 
         return res
             .status(201)
             .location('/api/v1/users/' + newCittadino._id)
-            .json({ message: 'Registrazione avvenuta con successo', user: userResponse });
-    
+            .json({
+                message: 'Registrazione avvenuta con successo',
+                token,
+                user: userResponse
+            });
+
     } catch (err) {
         return handleError(err, res);
     }
 };
 
-// registrazione proprietario
 // POST /api/v1/auth/register/owner
 exports.registerOwner = async (req, res) => {
     try {
-        
-        // il proprietario richiede partitaIVA come campo specifico
-        const {email, password, nome, cognome, partitaIVA} = req.body;
-        const userData = {
-            email: email,
-            password: password,
-            nome: nome,
-            cognome: cognome,
-            partitaIVA: partitaIVA
-        };
+        const { email, password, nome, cognome, partitaIVA } = req.body;
+        const userData = { email, password, nome, cognome, partitaIVA };
 
         const newProprietario = new Proprietario(userData);
         await newProprietario.save();
 
         console.log(`Nuovo proprietario registrato: ${email}`);
 
+        const token = generaToken(newProprietario);
         const userResponse = sanitizeUser(newProprietario);
 
         return res
             .status(201)
             .location('/api/v1/users/' + newProprietario._id)
-            .json({ message: 'Registrazione avvenuta con successo', user: userResponse });
-    
+            .json({
+                message: 'Registrazione avvenuta con successo',
+                token,
+                user: userResponse
+            });
+
     } catch (err) {
         return handleError(err, res);
     }
 };
 
-// login utente
 // POST /api/v1/auth/login
 exports.login = async (req, res) => {
     try {
-        const {email, password} = req.body;
+        const { email, password } = req.body;
 
-        if(typeof email !== 'string' || typeof password !== 'string'){
-            return res.status(400).json({ error: 'Email e password devono essere stringhe' });
-        }
-
-        if(!email || !password) {
+        //check presenza (PRIMA del check tipo, per messaggi più utili)
+        if (!email || !password) {
             const details = [];
             if (!email) details.push({ field: 'email', message: 'campo email obbligatorio' });
             if (!password) details.push({ field: 'password', message: 'campo password obbligatorio' });
             return res.status(400).json({ error: 'Validazione fallita', details });
         }
 
-        // cerca utente per email e includi password per il confronto
-        const user = await User.findOne({email: email.toLowerCase().trim()}).select('+password');
+        //check tipo
+        if (typeof email !== 'string' || typeof password !== 'string') {
+            return res.status(400).json({ error: 'Email e password devono essere stringhe' });
+        }
+
+        //lookup con select esplicito della password
+        const user = await User.findOne({ email: email.toLowerCase().trim() }).select('+password');
         if (!user) {
             return res.status(401).json({ error: 'Credenziali non valide' });
         }
@@ -120,13 +124,7 @@ exports.login = async (req, res) => {
             return res.status(401).json({ error: 'Credenziali non valide' });
         }
 
-        // generazione token JWT
-        const token = jwt.sign(
-            {userId: user._id, ruolo: user.ruolo},
-            process.env.JWT_SECRET,
-            // scadenza token in 2H
-            {expiresIn: 7200}
-        );
+        const token = generaToken(user);
 
         console.log(`Login effettuato: ${user.email} (${user.ruolo})`);
         return res.status(200).json({
@@ -134,6 +132,7 @@ exports.login = async (req, res) => {
             token,
             user: sanitizeUser(user)
         });
+
     } catch (err) {
         return handleError(err, res);
     }

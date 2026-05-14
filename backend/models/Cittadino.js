@@ -18,8 +18,8 @@ const cittadinoSchema = new mongoose.Schema({
         min: [0, 'lo score non può essere negativo'],
     },
     posizione: {
-        latitudine: {type: Number, min: -90, max: 90},
-        longitudine: {type: Number, min: -180, max: 180}
+        latitudine: { type: Number, min: -90, max: 90 },
+        longitudine: { type: Number, min: -180, max: 180 }
     },
     storicoPercorsi: [{
         type: mongoose.Schema.Types.ObjectId,
@@ -28,7 +28,7 @@ const cittadinoSchema = new mongoose.Schema({
     storicoSegnalazioni: [{
         type: mongoose.Schema.Types.ObjectId,
         ref: 'Segnalazione'
-    }], 
+    }],
 });
 
 module.exports = User.discriminator('cittadino', cittadinoSchema);

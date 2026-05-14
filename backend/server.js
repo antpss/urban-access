@@ -8,18 +8,18 @@ require('./models/Cittadino');
 require('./models/Proprietario');
 
 const authRoutes = require('./routes/auth');
+const usersRoutes = require('./routes/users');
 
 const PORT = process.env.PORT || 3000;
 const MONGO_URI = process.env.MONGO_URI;
 const JWT_SECRET = process.env.JWT_SECRET;
 
-if(!MONGO_URI){
+if (!MONGO_URI) {
     console.error("[FATAL] MONGO_URI non definito.");
     process.exit(1);
 }
 
-//boot check JWT_SECRET
-if(!JWT_SECRET){
+if (!JWT_SECRET) {
     console.error("[FATAL] JWT_SECRET non definito.");
     process.exit(1);
 }
@@ -35,8 +35,9 @@ app.get('/api/v1/health', (req, res) => {
     res.status(200).json({ status: 'ok', message: 'Urban Access API is running' });
 });
 
-//rotte pubbliche
+//rotte API
 app.use('/api/v1/auth', authRoutes);
+app.use('/api/v1/users', usersRoutes);
 
 //404 JSON per API non trovate (PRIMA del fallback SPA)
 app.use('/api', (req, res) => {
@@ -49,17 +50,15 @@ app.get('/{*splat}', (req, res) => {
     res.sendFile(path.join(__dirname, '../frontend/', 'index.html'));
 });
 
-//connessione DB e avvio
 mongoose.connect(MONGO_URI)
     .then(() => {
-        console.log('Connected to Database:', mongoose.connection.name);  //log nome DB per verifica
+        console.log('Connected to Database:', mongoose.connection.name);
         server = app.listen(PORT, () => {
             console.log(`Server listening on port ${PORT}`);
         });
     })
     .catch((err) => console.error('Errore di connessione:', err));
 
-//graceful shutdown
 const shutdown = async (signal) => {
     console.log(`\n[SHUTDOWN] Ricevuto ${signal}, chiusura in corso...`);
     if (server) {

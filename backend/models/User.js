@@ -16,7 +16,7 @@ const userSchema = new mongoose.Schema({
         required: [true, 'campo password obbligatorio'], 
         minlength: [8, 'lunghezza minima password 8 caratteri'],
         maxlength: [128, 'lunghezza massima password 128 caratteri'],
-        select: true
+        select: false
     },
     notifiche: [{
         messaggio: String,
@@ -31,19 +31,16 @@ const userSchema = new mongoose.Schema({
         type: String, 
         required: [true, 'campo cognome obbligatorio'] 
     },
-}, {timestamps: true, discriminatorKey: 'ruolo', collection: 'users'});
+}, { timestamps: true, discriminatorKey: 'ruolo', collection: 'users' });
 
 
-// middleware: Hashing della password prima del salvataggio
+// Hashing della password prima del salvataggio
 userSchema.pre('save', async function() {
-    // Se la password non è stata modificata, esci (non serve next())
     if (!this.isModified('password')) return;
-
-    // hashing della password
     this.password = await bcrypt.hash(this.password, 12);
 });
 
-// compara password inserita con quella salvata
+// Compara password inserita con quella salvata
 userSchema.methods.comparePassword = function(insertedPassword) {
     return bcrypt.compare(insertedPassword, this.password);
 };

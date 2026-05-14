@@ -320,6 +320,8 @@ paths:
         - L'`userId` viene estratto dal JWT, non dall'URL (mitigazione IDOR).
         - I valori duplicati nell'array vengono deduplicati lato server.
         - Valori non ammessi nell'enum producono 400.
+        - Campi non presenti nella whitelist dei modificabili vengono ignorati.
+        - Body vuoto (nessun campo modificabile presente) produce 400.
       operationId: aggiornaProfiloUtente
       security:
         - bearerAuth: []
@@ -350,7 +352,11 @@ paths:
                   scoreAffidabilita: 0
                   createdAt: '2026-05-12T14:30:00.000Z'
         '400':
-          description: Payload non valido.
+          description: |
+            Payload non valido. Possibili cause:
+            - body vuoto o senza alcun campo modificabile
+            - `profiloDisabilita` non è un array
+            - `profiloDisabilita` contiene valori fuori enum
           content:
             application/json:
               schema:
@@ -378,6 +384,14 @@ paths:
                 $ref: '#/components/schemas/Error'
               example:
                 error: Permessi insufficienti
+        '404':
+          description: Utente non trovato (token valido ma utente eliminato).
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                error: Utente non trovato
         '500':
           description: Errore interno del server.
           content:
@@ -546,9 +560,16 @@ components:
     
     UpdateProfileRequest:
       type: object
+      description: |
+        Payload per l'aggiornamento parziale del profilo (semantica PATCH).
+        Tutti i campi sono opzionali, ma il body deve contenere almeno
+        un campo modificabile presente nella whitelist.
       properties:
         profiloDisabilita:
           type: array
+          description: |
+            Array delle disabilità. Sovrascrive completamente il valore esistente.
+            Riservato al ruolo `cittadino`.
           items:
             type: string
             enum: [sediaARotelle, cecita, sordita, ausilioDeambulazione]
