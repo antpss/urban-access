@@ -274,7 +274,6 @@ paths:
           description: |
             Dati di input non validi. Possibili cause:
             - campo obbligatorio mancante (email o password)
-            - formato email non valido
           content:
             application/json:
               schema:
