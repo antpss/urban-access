@@ -20,11 +20,9 @@
         <form class="space-y-5" @submit.prevent="handleLogin" novalidate>
         <div>
             <label for="email" class="block text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-1.5 ml-1">Email</label>
-            <input id="email" type="email" required v-model="email" @input="validateEmail"
-            class="appearance-none block w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl placeholder-slate-400 text-slate-800 focus:outline-none focus:ring-2 focus:ring-emerald-400 focus:bg-white transition-all sm:text-sm" 
-            :class="{'border-rose-400 focus:ring-rose-500': emailError}"
-            placeholder="mario.rossi@esempio.com" />
-            <p v-if="emailError" class="text-rose-500 text-[11px] mt-1.5 ml-1 font-semibold">{{ emailError }}</p>
+            <input id="email" type="email" required v-model="email"
+                class="appearance-none block w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl placeholder-slate-400 text-slate-800 focus:outline-none focus:ring-2 focus:ring-emerald-400 focus:bg-white transition-all sm:text-sm" 
+                placeholder="mario.rossi@esempio.com" />
         </div>
         <div>
             <label for="password" class="block text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-1.5 ml-1">Password</label>
@@ -81,7 +79,6 @@ const router = useRouter();
 
 const email = ref('');
 const password = ref('');
-const emailError = ref('');
 const serverError = ref('');
 const isLoading = ref(false);
 const showPassword = ref(false);
@@ -92,24 +89,14 @@ const utenteNome = ref(getUser()?.nome || '');
 const API_BASE_URL = '/api/v1';
 
 const hasErrors = computed(() => {
-  return emailError.value !== '' || !email.value || !password.value;
+  return !email.value || !password.value;
 });
-
-const validateEmail = () => {
-  const emailRegex = /^\S+@\S+\.\S+$/;
-  if (email.value.length > 0 && !emailRegex.test(email.value)) {
-    emailError.value = 'Mail non valida';
-  } else {
-    emailError.value = '';
-  }
-};
 
 const clearError = () => {
   serverError.value = '';
 };
 
 const handleLogin = async () => {
-  validateEmail();
   if (hasErrors.value) return;
 
   isLoading.value = true;
@@ -138,9 +125,6 @@ const handleLogin = async () => {
     // estrai i dati utente dalla response
     utenteNome.value = data.user.nome;
     isLoggedIn.value = true;
-    
-    // Qui puoi salvare il token JWT come indicato nella logica che già possiedi
-    // localStorage.setItem('token', data.token);
     
   } catch (error) {
     serverError.value = error.message === 'Failed to fetch' 
