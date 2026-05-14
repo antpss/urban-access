@@ -439,11 +439,9 @@ paths:
         inversione.
 
         ## Foto
-        Massimo **5 file**, ciascuno **≤ 5MB**, MIME ammessi:
-        `image/jpeg`, `image/png`, `image/webp`. I file vengono rinominati
-        lato server con un nome randomizzato (prevenzione path traversal e
-        collisioni). Gli URL finali sono raggiungibili tramite
-        `GET /uploads/segnalazioni/{filename}` (asset statico).
+        Massimo **5 file**, ciascuno **≤ 5MB**, estensioni ammesse:
+        `image/jpeg`, `image/png`, `image/webp`. Il server rifiuta file che non 
+        rispettano questi vincoli.
 
         ## Stato iniziale
         Le segnalazioni pubbliche partono in stato `APERTA` e sono
