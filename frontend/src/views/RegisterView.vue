@@ -123,6 +123,13 @@
             <span v-else>Crea Account</span>
           </button>
         </div>
+
+        <div class="text-center" mt-4>
+          <p class="text-sm text-slate-600">
+            Hai già un account? 
+            <a href="#" @click.prevent="goToLogin" class="font-bold text-emerald-600 hover:text-emerald-500 transition-colors">Effettua il login</a>
+          </p>
+        </div>
         
       </form>
     </div>
@@ -131,6 +138,9 @@
 
 <script setup>
 import { ref, computed } from 'vue';
+import { useRouter } from 'vue-router';
+
+const router = useRouter();
 
 const ruolo = ref('cittadino');
 const nome = ref('');
@@ -202,6 +212,10 @@ const validatePartitaIVA = () => {
   } else {
     partitaIVAError.value = '';
   }
+};
+
+const goToLogin = () => {
+  router.push('/login');
 };
 
 const handleRegister = async () => {

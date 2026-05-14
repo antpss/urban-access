@@ -6,7 +6,7 @@ const userSchema = new mongoose.Schema({
     email: { 
         type: String, 
         required: [true, 'campo email obbligatorio'],
-        unique: true, 
+        unique: true,
         lowercase: true,
         trim: true,
         match: [/^\S+@\S+\.\S+$/, 'formato email non valido'] 
@@ -15,7 +15,8 @@ const userSchema = new mongoose.Schema({
         type: String, 
         required: [true, 'campo password obbligatorio'], 
         minlength: [8, 'lunghezza minima password 8 caratteri'],
-        maxlength: [128, 'lunghezza massima password 128 caratteri'] 
+        maxlength: [128, 'lunghezza massima password 128 caratteri'],
+        select: true
     },
     notifiche: [{
         messaggio: String,
@@ -41,5 +42,10 @@ userSchema.pre('save', async function() {
     // hashing della password
     this.password = await bcrypt.hash(this.password, 12);
 });
+
+// compara password inserita con quella salvata
+userSchema.methods.comparePassword = function(insertedPassword) {
+    return bcrypt.compare(insertedPassword, this.password);
+};
 
 module.exports = mongoose.model('User', userSchema);
