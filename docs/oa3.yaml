@@ -543,7 +543,7 @@ paths:
                   - field: categoria
                     message: 'categoria "marciapide" non ammessa'
                   - field: latitudine
-                    message: 'coordinate non valide: lat∈[-90,90]'
+                    message: 'coordinate fuori range consentito'
         '401':
           description: Token mancante, non valido o scaduto.
           content:
