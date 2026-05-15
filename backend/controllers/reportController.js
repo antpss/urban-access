@@ -32,7 +32,7 @@ exports.createPublicReport = async (req, res) => {
         //salvataggio segnalazione nel db  
         await nuovaSegnalazione.save();
 
-        //aAggiornamento storico del cittadino
+        //aggiornamento storico del cittadino
         await Cittadino.findByIdAndUpdate(
             req.loggedUser.userId,
             { $push: { storicoSegnalazioni: nuovaSegnalazione._id } }
