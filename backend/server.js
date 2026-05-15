@@ -8,6 +8,8 @@ require('./models/Cittadino');
 require('./models/Proprietario');
 require('./models/Segnalazione');
 require('./models/SegnalazionePubblica');
+require('./models/SegnalazionePrivata');
+
 
 
 const authRoutes = require('./routes/auth');
