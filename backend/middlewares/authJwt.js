@@ -2,7 +2,7 @@ const jwt = require('jsonwebtoken');
 
 //middleware: validazione token JWT
 const verifyToken = function(req, res, next) {
-    //estrazione token: body | query | header x-access-token | header Authorization: Bearer
+    //estrazione token
     let token = req.body.token 
              || req.query.token 
              || req.headers['x-access-token'];
@@ -16,13 +16,19 @@ const verifyToken = function(req, res, next) {
     }
 
     if (!token) {
-        return res.status(401).json({ success: false, message: 'No token provided.' });
+        return res.status(401).json({ error: 'Token mancante' });
     }
 
     //verifica firma e scadenza
     jwt.verify(token, process.env.JWT_SECRET, function(err, decoded) {
         if (err) {
-            return res.status(403).json({ success: false, message: 'Token not valid' });
+            if (err.name === 'TokenExpiredError') {
+                return res.status(401).json({ error: 'Token scaduto' });
+            }
+            if (err.name === 'JsonWebTokenError') {
+                return res.status(401).json({ error: 'Token non valido' });
+            }
+            return res.status(401).json({ error: 'Token non valido o scaduto' });
         }
         //token valido: payload disponibile per i route handler successivi
         req.loggedUser = decoded;
@@ -35,8 +41,7 @@ const requireRole = function(...allowedRoles) {
     return function(req, res, next) {
         if (!req.loggedUser || !allowedRoles.includes(req.loggedUser.ruolo)) {
             return res.status(403).json({ 
-                success: false, 
-                message: 'Accesso negato: ruolo non autorizzato' 
+                error: 'Accesso negato: ruolo non autorizzato' 
             });
         }
         next();
