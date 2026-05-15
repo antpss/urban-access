@@ -81,7 +81,7 @@ const segnalazioneSchema = new mongoose.Schema({
 }, {
     timestamps: true,
     discriminatorKey: 'tipo',               //pubblica - privata
-    collection: 'segnalazioni'
+    collection: 'reports'
 });
 
 //INDICE 2DSPHERE: abilita query $near, $geoWithin, $geoIntersects
