@@ -34,7 +34,7 @@ info:
     Attualmente l'unico campo modificabile è `profiloDisabilita`, riservato ai cittadini, che accetta un array di disabilità.
 
     ## Asset statici (foto segnalazioni)
-    Le foto caricate dai cittadini in `POST /segnalazioni/pubbliche` vengono
+    Le foto caricate dai cittadini in `POST /reports/public` vengono
     salvate su disco e servite come asset statici da `GET /uploads/segnalazioni/{filename}`.
     Tali URL **NON** sono parte dell'API REST documentata: sono risorse pubbliche
     raggiungibili direttamente.
@@ -438,7 +438,7 @@ paths:
               schema:
                 $ref: '#/components/schemas/Error'
 
-  /segnalazioni/pubbliche:
+  /reports/public:
     post:
       tags:
         - Segnalazioni
@@ -473,7 +473,7 @@ paths:
         ## Stato iniziale
         Le segnalazioni pubbliche partono in stato `APERTA` e sono
         **immediatamente visibili** sulla mappa.
-        Vincolo OCL (Deliverable 2, §3.3): una `SegnalazionePubblica`
+        Una `SegnalazionePubblica`
         non può mai trovarsi in stato `IN_VERIFICA`.
 
         ## Comportamento server-side
@@ -500,7 +500,7 @@ paths:
               schema:
                 type: string
               description: URL della risorsa appena creata.
-              example: /api/v1/segnalazioni/65b4f4e7b8d9c1f4a2e5b6d1
+              example: /api/v1/reports/65b4f4e7b8d9c1f4a2e5b6d1
           content:
             application/json:
               schema:
