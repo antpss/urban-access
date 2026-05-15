@@ -10,7 +10,7 @@ info:
     - Tutte le risposte sono in formato JSON.
     - Architettura RESTful e stateless.
     - Password encryption via bcrypt.
-    - Autenticazione tramite JWT (introdotta da US2).
+    - Autenticazione tramite JWT.
 
     ## Modello utenti
     Il sistema distingue tre ruoli principali: `cittadino`, `proprietario` e `operatore`.
@@ -73,13 +73,13 @@ paths:
 
         **Payload minimale**: solo dati anagrafici e credenziali.
         I dati di profilazione (profilo disabilità, ecc.) sono gestiti
-        tramite endpoint dedicati post-registrazione (US3).
+        tramite endpoint dedicati post-registrazione.
 
         **Comportamento server-side:**
         - L'email viene normalizzata (lowercase, trim) prima del salvataggio.
         - La password viene salvata in formato hashato (bcrypt, 12 salt rounds).
         - Lo `scoreAffidabilita` viene inizializzato a `0`.
-        - `profiloDisabilita` ha default `nessuna` (modificabile via US3).
+        - `profiloDisabilita` ha default `nessuna`.
         - `storicoPercorsi` e `storicoSegnalazioni` inizializzati come array vuoti.
       operationId: registraCittadino
       requestBody:
@@ -256,7 +256,7 @@ paths:
         - L'email viene normalizzata (lowercase, trim) prima della ricerca.
         - La password viene confrontata con l'hash bcrypt salvato in DB.
         - In caso di successo viene generato un token JWT firmato con `JWT_SECRET`,
-          contenente `userId`, `ruolo` e scadenza a **24 ore**.
+          contenente `userId`, `ruolo` e scadenza a **2 ore**.
         - Il token deve essere incluso nell'header `Authorization: Bearer <token>`
           per accedere agli endpoint protetti.
 
@@ -555,7 +555,7 @@ paths:
           description: |
             Ruolo non autorizzato. Solo il ruolo `cittadino` può creare
             segnalazioni pubbliche da questo endpoint. Operatori comunali
-            utilizzano un endpoint dedicato (US futura, UC3).
+            utilizzano un endpoint dedicato.
           content:
             application/json:
               schema:
@@ -926,7 +926,7 @@ components:
           nullable: true
           description: |
             ObjectId dell'operatore comunale assegnato. `null` finché non
-            avviene l'assegnazione (US futura, UC3).
+            avviene l'assegnazione.
           example: null
         bloccaModifica:
           type: boolean
