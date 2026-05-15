@@ -2,19 +2,30 @@ const jwt = require('jsonwebtoken');
 
 //middleware: validazione token JWT
 const verifyToken = function(req, res, next) {
-    //estrazione token
-    let token = req.body.token 
-             || req.query.token 
-             || req.headers['x-access-token'];
+    let token;
+
+    //cerca token nel body SOLO se req.body è stato parsato ed esiste
+    if (req.body && req.body.token) {
+        token = req.body.token;
+    } 
+    //altrimenti cerca nella query string SOLO se req.query esiste
+    else if (req.query && req.query.token) {
+        token = req.query.token;
+    } 
+    //altrimenti cerca nell'header x-access-token SOLO se req.headers esiste
+    else if (req.headers && req.headers['x-access-token']) {
+        token = req.headers['x-access-token'];
+    }
 
     //supporto aggiuntivo per Authorization: Bearer <token>
-    if (!token && req.headers['authorization']) {
+    if (!token && req.headers && req.headers['authorization']) {
         const authHeader = req.headers['authorization'];
         if (authHeader.startsWith('Bearer ')) {
-            token = authHeader.slice(7);
+            token = authHeader.slice(7); //slicer per Bearer
         }
     }
 
+    //se alla fine di tutti i controlli non c'è nessun token, blocca la richiesta
     if (!token) {
         return res.status(401).json({ error: 'Token mancante' });
     }
