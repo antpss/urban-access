@@ -12,6 +12,7 @@ require('./models/SegnalazionePubblica');
 
 const authRoutes = require('./routes/auth');
 const usersRoutes = require('./routes/users');
+const reportsRoutes = require('./routes/reports');
 
 const PORT = process.env.PORT || 3000;
 const MONGO_URI = process.env.MONGO_URI;
@@ -41,6 +42,7 @@ app.get('/api/v1/health', (req, res) => {
 //rotte API
 app.use('/api/v1/auth', authRoutes);
 app.use('/api/v1/users', usersRoutes);
+app.use('/api/v1/reports', reportsRoutes);
 
 //404 JSON per API non trovate (PRIMA del fallback SPA)
 app.use('/api', (req, res) => {
