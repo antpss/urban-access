@@ -531,7 +531,8 @@ paths:
             - coordinate fuori range (`longitudine` ∉ [-180, 180], `latitudine` ∉ [-90, 90])
             - coordinate non numeriche
             - `descrizione` troppo breve (< 10 caratteri) o troppo lunga (> 1000)
-            - Content-Type diverso da `multipart/form-data`
+            - estensione non accettata (estensioni valide: '.jpeg', '.png', '.webp')
+            - dimensione file >5MB 
           content:
             application/json:
               schema:
@@ -562,32 +563,6 @@ paths:
                 $ref: '#/components/schemas/Error'
               example:
                 error: 'Accesso negato: ruolo non autorizzato'
-        '413':
-          description: |
-            Payload troppo grande. Cause:
-            - singolo file > 5MB
-            - somma totale del body oltre il limite del proxy/server
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ValidationError'
-              example:
-                error: Upload fallito
-                details:
-                  - field: foto
-                    message: File too large
-        '415':
-          description: |
-            MIME type non supportato. Ammessi: `image/jpeg`, `image/png`, `image/webp`.
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ValidationError'
-              example:
-                error: Upload fallito
-                details:
-                  - field: foto
-                    message: 'MIME type "application/pdf" non ammesso'
         '500':
           description: Errore interno del server.
           content:
@@ -841,11 +816,6 @@ components:
         Payload `multipart/form-data` per la creazione di una segnalazione
         pubblica. La geolocalizzazione è espressa come due campi piatti
         (`longitudine`, `latitudine`) ricomposti server-side in `GeoJSONPoint`.
-      required:
-        - descrizione
-        - categoria
-        - longitudine
-        - latitudine
       properties:
         descrizione:
           type: string
