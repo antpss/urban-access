@@ -12,7 +12,6 @@ function sanitizeUser(userDoc) {
 }
 
 //whitelist dei campi modificabili via PATCH /users/me e relativi vincoli.
-//per aggiungere un campo modificabile in futuro: AGGIUNGERE QUI ENTRY.
 const CAMPI_MODIFICABILI = {
     profiloDisabilita: {
         ruoliAmmessi: ['cittadino'],
@@ -42,7 +41,7 @@ exports.updateMe = async (req, res) => {
             k => Object.prototype.hasOwnProperty.call(CAMPI_MODIFICABILI, k)
         );
 
-        //body senza nessun campo modificabile -> 400 (evita PATCH no-op)
+        //body senza nessun campo modificabile
         if (campiPresentiNelBody.length === 0) {
             return res.status(400).json({
                 error: 'Validazione fallita',
