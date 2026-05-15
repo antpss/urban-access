@@ -2,12 +2,18 @@
   <div class="min-h-screen flex items-center justify-center bg-gradient-to-br from-emerald-50 via-teal-50 to-green-100 py-12 px-4 sm:px-6 lg:px-8 relative overflow-hidden">
     <div class="absolute top-[-10%] left-[-10%] w-96 h-96 bg-emerald-200 rounded-full mix-blend-multiply filter blur-3xl opacity-50"></div>
     <div class="absolute bottom-[-10%] right-[-10%] w-96 h-96 bg-teal-200 rounded-full mix-blend-multiply filter blur-3xl opacity-50"></div>
-
+    
     <div class="max-w-md w-full relative z-10 bg-white/90 backdrop-blur-xl p-10 rounded-[2rem] shadow-2xl border border-white">
+      <div class="mx-auto h-16 w-16 bg-gradient-to-tr from-emerald-400 to-teal-500 rounded-2xl flex items-center justify-center mb-5 shadow-lg shadow-emerald-200 transform -rotate-3 hover:rotate-0 transition-transform duration-300">
+          <svg xmlns="http://www.w3.org/2000/svg" class="h-8 w-8 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 16l-4-4m0 0l4-4m-4 4h14m-5 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h7a3 3 0 013 3v1" />
+          </svg>
+      </div>
       <div class="text-center mb-8">
         <h2 class="text-3xl font-extrabold text-slate-800 tracking-tight">Profilo accessibilità</h2>
         <p class="mt-2 text-sm text-slate-500">Aiutaci a personalizzare la mappa per te. Puoi modificare in qualsiasi momento.</p>
       </div>
+      
 
       <transition name="fade">
         <div v-if="serverError" class="bg-rose-50 border-l-4 border-rose-500 p-4 mb-6 text-sm text-rose-700 rounded-r-xl">
