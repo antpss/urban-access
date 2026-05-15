@@ -35,7 +35,7 @@ info:
 
     ## Asset statici (foto segnalazioni)
     Le foto caricate dai cittadini in `POST /reports/public` vengono
-    salvate su disco e servite come asset statici da `GET /uploads/segnalazioni/{filename}`.
+    salvate su disco e servite come asset statici da `GET /uploads/reports/{filename}`.
     Tali URL **NON** sono parte dell'API REST documentata: sono risorse pubbliche
     raggiungibili direttamente.
 
@@ -473,7 +473,7 @@ paths:
         ## Stato iniziale
         Le segnalazioni pubbliche partono in stato `APERTA` e sono
         **immediatamente visibili** sulla mappa.
-        Una `SegnalazionePubblica`
+        Vincolo OCL (Deliverable 2, §3.3): una `SegnalazionePubblica`
         non può mai trovarsi in stato `IN_VERIFICA`.
 
         ## Comportamento server-side
@@ -517,7 +517,7 @@ paths:
                     type: Point
                     coordinates: [11.1217, 46.0700]
                   foto:
-                    - /uploads/segnalazioni/1715760000000_a1b2c3d4e5f6.jpg
+                    - /uploads/reports/1715760000000_a1b2c3d4e5f6.jpg
                   autore: 65a3f4e7b8d9c1f4a2e5b6c7
                   enteCompetente: null
                   bloccaModifica: false
@@ -916,7 +916,7 @@ components:
           description: Array di URL relativi delle foto caricate.
           items:
             type: string
-            example: /uploads/segnalazioni/1715760000000_a1b2c3d4e5f6.jpg
+            example: /uploads/reports/1715760000000_a1b2c3d4e5f6.jpg
         autore:
           type: string
           description: ObjectId dell'utente (cittadino) che ha creato la segnalazione.
