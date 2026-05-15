@@ -48,6 +48,7 @@ exports.createPublicReport = async (req, res) => {
             });
 
     } catch (err) {
+        console.error("ERRORE REPORT CONTROLLER:", err);
         //se Mongoose rileva che i dati non rispettano lo schema definito (es. descrizione troppo corta)
         if (err.name === 'ValidationError') {
             const details = Object.values(err.errors).map(e => ({
