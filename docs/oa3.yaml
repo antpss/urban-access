@@ -26,6 +26,13 @@ info:
     I proprietari aggiungono `partitaIVA` poiché sono dati legalmente
     necessari per identificare un'attività commerciale.
 
+    ## Gestione del profilo utente
+    Dopo la registrazione, il profilo dell'utente può essere modificato parzialmente tramite `PATCH /users/me`.
+    L'endopoint segue il pattern PATCH parziale: il body contiene solo i campi da modificare. I campi modificabili sono
+    gestiti server-side tramite una whitelist con vincoli per ogni campo (ruolo, validazione, trasformazione).
+
+    Attualmente l'unico campo modificabile è `profiloDisabilita`, riservato ai cittadini, che accetta un array di disabilità.
+
   version: 1.0.0
   contact:
     name: Gruppo 17 - UrbanAccess - Andrea Boarini, Antonio Possemato, Giovanni Todesco
@@ -312,16 +319,32 @@ paths:
       summary: Aggiorna il profilo dell'utente autenticato
       description: |
         Aggiorna parzialmente il profilo dell'utente identificato dal JWT.
+
+        **Semantica PATCH:**
+        Il payload descrive i campi da modificare. Ciò che non è specificato nel body resta invariato.
+        Se viene specificato un campo, il suo valore sovrascrive completamente quello esistente.
+
+        **Campi modificabili da whitelist:**
         Attualmente è ammesso solo l'aggiornamento di `profiloDisabilita`
-        (riservato al ruolo `cittadino`). Il payload sovrascrive completamente
-        l'array esistente.
+        (riservato al ruolo `cittadino`).
+        I valori accettati sono: `sediaARotelle`, `cecita`, `sordita`, `ausilioDeambulazione`.
+
+        **Future estensioni:**
+        In futuro l'endpoint in questione accoglierà ulteriori campi modificabili (nome, cognome, ecc.)
+        tramite estensione della whitelist. Il contratto tuttavia non varia, stesso endpoint, body diverso.
 
         **Comportamento server-side:**
-        - L'`userId` viene estratto dal JWT, non dall'URL (mitigazione IDOR).
+        - L'`userId` viene estratto dal JWT.
         - I valori duplicati nell'array vengono deduplicati lato server.
-        - Valori non ammessi nell'enum producono 400.
+        - Valori non ammessi nell'enum producono Errore 400.
         - Campi non presenti nella whitelist dei modificabili vengono ignorati.
-        - Body vuoto (nessun campo modificabile presente) produce 400.
+        - Body vuoto (nessun campo modificabile presente) produce Errore 400.
+
+        **Verifica sul token:**
+        - Se il token non è valido o scaduto produce Errore 401.
+        - Se il token è valido ma l'utente non esiste più (es. eliminato) produce Errore 404.
+        - Se il token passato appartiene a un utente diverso da `cittadino` produce Errore 403 segnalado l'impossiblità di modificare i campi
+        non esistenti come attributi. Questo garantisce che solo chi ha un dato attributo possa modificarlo, evitando false chiamate da parte di utenti con ruoli diversi.
       operationId: aggiornaProfiloUtente
       security:
         - bearerAuth: []
@@ -367,25 +390,30 @@ paths:
                   - field: profiloDisabilita
                     message: 'Valori non ammessi: foo, bar'
         '401':
-          description: Token mancante, non valido o scaduto.
+          description: |
+            Autenticazione fallita. Possibili cause:
+            - token mancante nell'header `Authorization`
+            - token non valido (firma errata, formato errato, ecc.)
+            - token scaduto (oltre 24 ore dalla generazione)
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/Error'
               example:
-                error: Token non valido o scaduto
+                error: Token scaduto
         '403':
           description: |
-            Ruolo non autorizzato. Solo i `cittadino` possono modificare
-            il proprio profilo disabilità.
+            Ruolo autenticato ma non autorizzato.
+            Si verifica quando si tenta di modificare un campo riservato a un ruolo diverso dal proprio
+            (es. un `proprietario` che tenta di modificare `profiloDisabilita` riservato ai `cittadino`).
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/Error'
               example:
-                error: Permessi insufficienti
+                error: Modifica del campo "profiloDisabilita" non permessa per il ruolo "proprietario"
         '404':
-          description: Utente non trovato (token valido ma utente eliminato).
+          description: Utente non trovato. Si verifica quando il token è valido ma l'utente associato è stato eliminato o non esiste più.
           content:
             application/json:
               schema:
