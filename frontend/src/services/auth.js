@@ -51,13 +51,23 @@ export function isAuthenticated() {
     }
 }
 
+// authFetch capisce se il contenuto da mandare al server è JSON o
+// contiene anche binari per foto, adattando di conseguenza gli headers e il body della richiesta
 export async function authFetch(url, options = {}) {
     const token = getToken();
     const headers = {
         ...(options.headers || {}),
-        'Content-Type': 'application/json',
-        ...(token ? { 'Authorization': `Bearer ${token}` } : {})
     };
+
+    if (token) {
+        headers['Authorization'] = `Bearer ${token}`;
+    }
+
+    // aggiunge header per JSON solo se il body non è un FormData
+    // nel caso fosse un FormData, il browser gestisce il Content-Type e il boundary automaticamente
+    if (!(options.body instanceof FormData) && !headers['Content-Type']) {
+        headers['Content-Type'] = 'application/json';
+    }
 
     const response = await fetch(url, { ...options, headers });
 
