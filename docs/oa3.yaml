@@ -571,6 +571,89 @@ paths:
                 $ref: '#/components/schemas/Error'
               example:
                 error: Errore interno del server
+  /reports/private:
+    post:
+      tags:
+        - Segnalazioni
+      summary: Crea una nuova segnalazione per una struttura privata
+      description: |
+        Permette a un cittadino autenticato di creare una nuova segnalazione
+        associata a una **struttura privata**.
+        
+        A differenza delle segnalazioni pubbliche, queste vengono inizializzate
+        automaticamente nello stato `IN_VERIFICA` e non sono immediatamente visibili
+        sulla mappa (`visibile: false`). Diventeranno `APERTA` (attive) solo
+        al raggiungimento della `sogliaValidazione`.
+
+        Il payload deve essere inviato come `multipart/form-data`.
+      operationId: creaSegnalazionePrivata
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/CreateSegnalazionePrivataForm'
+            encoding:
+              foto:
+                contentType: image/jpeg, image/png, image/webp
+      responses:
+        '201':
+          description: Segnalazione privata creata e messa in verifica.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CreateSegnalazionePrivataResponse'
+        '400':
+          description: |
+            Dati di input non validi. Possibili cause:
+            - campo obbligatorio mancante (`descrizione`, `categoria`, `longitudine`, `latitudine`)
+            - `categoria` fuori enum
+            - coordinate fuori range (`longitudine` ∉ [-180, 180], `latitudine` ∉ [-90, 90])
+            - coordinate non numeriche
+            - `descrizione` troppo breve (< 10 caratteri) o troppo lunga (> 1000)
+            - estensione non accettata (estensioni valide: '.jpeg', '.png', '.webp')
+            - dimensione file >5MB      
+            - id non valido     
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ValidationError'
+              example:
+                error: Validazione fallita
+                details:
+                  - field: categoria
+                    message: 'categoria "marciapide" non ammessa'
+                  - field: latitudine
+                    message: 'coordinate non valide: lat∈[-90,90]'
+        '401':
+          description: Token mancante, non valido o scaduto.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                error: Token non valido o scaduto
+        '403':
+          description: |
+            Ruolo non autorizzato. Solo il ruolo `cittadino` può creare
+            segnalazioni pubbliche da questo endpoint. Operatori comunali
+            utilizzano un endpoint dedicato.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                error: 'Accesso negato: ruolo non autorizzato'
+        '500':
+          description: Errore interno del server.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                error: Errore interno del server
 
 components:
   securitySchemes:
@@ -952,3 +1035,75 @@ components:
                 type: string
               message:
                 type: string
+    
+    CreateSegnalazionePrivataForm:
+      type: object
+      description: Payload multipart per la creazione di una segnalazione privata.
+      properties:
+        strutturaAssociata:
+          type: string
+          description: L'ObjectId della StrutturaPrivata a cui associare la segnalazione.
+          example: 65b4f4e7b8d9c1f4a2e5b6a9
+        descrizione:
+          type: string
+          minLength: 10
+          maxLength: 1000
+          example: "Assenza di rampa all'ingresso del locale, impossibile entrare con sedia a rotelle."
+        categoria:
+          $ref: '#/components/schemas/CategoriaBarriera'
+        longitudine:
+          type: string
+          example: '11.1217'
+        latitudine:
+          type: string
+          example: '46.0700'
+        foto:
+          type: array
+          maxItems: 5
+          items:
+            type: string
+            format: binary
+
+    SegnalazionePrivata:
+      type: object
+      description: |
+        Rappresentazione di una segnalazione su struttura privata
+        (discriminator `tipo = "privata"`).
+      allOf:
+        - $ref: '#/components/schemas/SegnalazionePubblica'
+      properties:
+        tipo:
+          type: string
+          enum: [privata]
+        strutturaAssociata:
+          type: string
+          description: ObjectId della StrutturaPrivata.
+        scoreAssociato:
+          type: number
+          example: 0
+        sogliaValidazione:
+          type: number
+          example: 10
+        listaValidatori:
+          type: array
+          items:
+            type: string
+          description: Array di ObjectId dei Cittadini che hanno supportato la segnalazione.
+        numAnomalie:
+          type: integer
+          example: 0
+        sogliaAllarme:
+          type: integer
+          example: 5
+        visibile:
+          type: boolean
+          example: false
+
+    CreateSegnalazionePrivataResponse:
+      type: object
+      properties:
+        message:
+          type: string
+          example: Segnalazione privata creata con successo ed in attesa di validazione
+        segnalazione:
+          $ref: '#/components/schemas/SegnalazionePrivata'
