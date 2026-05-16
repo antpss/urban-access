@@ -1,1 +1,67 @@
 @import "tailwindcss";
+
+.marker-custom {
+  background: transparent !important;
+  border: none !important;
+}
+
+.marker-pin {
+  width: 28px;
+  height: 28px;
+  border-radius: 50% 50% 50% 0;
+  background: var(--marker-color);
+  transform: rotate(-45deg);
+  border: 3px solid white;
+  box-shadow: 0 3px 10px rgba(0, 0, 0, 0.3);
+  transition: transform 0.2s ease-out;
+  cursor: pointer;
+}
+
+.marker-pin:hover {
+  transform: rotate(-45deg) scale(1.15);
+  box-shadow: 0 5px 14px rgba(0, 0, 0, 0.35);
+}
+
+.leaflet-popup.popup-moderno .leaflet-popup-content-wrapper {
+  background: white;
+  border-radius: 14px;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.15);
+  padding: 2px;
+}
+
+.leaflet-popup.popup-moderno .leaflet-popup-content {
+  margin: 12px 16px;
+  font-family: system-ui, -apple-system, sans-serif;
+  font-size: 13px;
+  line-height: 1.5;
+  color: #334155;
+}
+
+.leaflet-popup.popup-moderno .leaflet-popup-content b {
+  color: #0f172a;
+  font-weight: 700;
+  display: block;
+  margin-bottom: 4px;
+  text-transform: capitalize;
+  font-size: 14px;
+}
+
+.leaflet-popup.popup-moderno .leaflet-popup-tip {
+  background: white;
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.1);
+}
+
+.marker-custom {
+  background: transparent !important;
+  border: none !important;
+}
+
+.marker-custom svg {
+  transition: transform 0.2s ease-out;
+  cursor: pointer;
+  transform-origin: bottom center;
+}
+
+.marker-custom svg:hover {
+  transform: scale(1.15);
+}

@@ -15,6 +15,25 @@ L.Icon.Default.mergeOptions({ iconUrl, shadowUrl });
 
 const mapContainer = ref(null);
 let map = null;
+let markersLayer = null;
+
+function creaIconaCustom(tipo) {
+  const colore = tipo === 'pubblica' ? '#0ea5e9' : '#0ea5e9';
+  const svgPin = `
+    <svg width="28" height="42" viewBox="0 0 24 36" xmlns="http://www.w3.org/2000/svg">
+      <path d="M12 0C5.37 0 0 5.37 0 12C0 21 12 36 12 36C12 36 24 21 24 12C24 5.37 18.63 0 12 0Z" 
+            fill="${colore}" stroke="white" stroke-width="2"/>
+      <circle cx="12" cy="12" r="4" fill="white"/>
+    </svg>
+  `;
+  return L.divIcon({
+    className: 'marker-custom',
+    html: svgPin,
+    iconSize: [28, 42],
+    iconAnchor: [14, 42],
+    popupAnchor: [0, -38]
+  });
+}
 
 //funzione che scarica i dati dal backend e li visualizza su mappa
 async function caricaSegnalazioni() {
@@ -42,15 +61,21 @@ async function caricaSegnalazioni() {
       const [lng, lat] = seg.geolocalizzazione.coordinates;
       
       //creiamo il marker e attacchiamo il popup con la descrizione della barriera
-      L.marker([lat, lng])
-        .bindPopup(`<b>${seg.categoria}</b><br>${seg.descrizione}`)
-        .addTo(map);
+      L.marker([lat, lng], { icon: creaIconaCustom(seg.tipo) })
+        .bindPopup(`<b>${seg.categoria}</b><br>${seg.descrizione}`, {
+          className: 'popup-moderno',
+          closeButton: false,
+          maxWidth: 280
+        })
+        .addTo(markersLayer);
+
     });
   } catch (err) {
     console.error("Errore scaricamento segnalazioni:", err);
   }
 }
 
+defineExpose({ refresh: caricaSegnalazioni });
 
 onMounted(() => {
   // inizializzazione mappa su Trento
@@ -62,6 +87,11 @@ onMounted(() => {
   L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png', {
   attribution: '© OpenStreetMap contributors, © CARTO'
   }).addTo(map);
+
+  markersLayer = L.layerGroup().addTo(map);
+
+  // ad ogni movimento della mappa ricarica le segnalazioni visibili in quella viewport
+  map.on('moveend', caricaSegnalazioni);
 
   caricaSegnalazioni();
 });
