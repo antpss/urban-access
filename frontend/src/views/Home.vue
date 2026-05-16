@@ -1,7 +1,10 @@
 <template>
   <div class="h-screen w-full flex overflow-hidden bg-slate-50 relative">
     
+
     <main class="flex-1 relative flex items-center justify-center bg-slate-200 z-0">
+      
+      <!--hamburger menu-->
       <button 
         @click="isSidebarOpen = true" 
         v-if="!isSidebarOpen"
@@ -12,12 +15,8 @@
         </svg>
       </button>
 
-      <div class="text-center opacity-30 select-none pointer-events-none">
-        <svg xmlns="http://www.w3.org/2000/svg" class="h-32 w-32 mx-auto mb-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9 20l-5.447-2.724A2 2 0 013 15.382V6.418a2 2 0 011.106-1.789L9 2m6 18l5.447-2.724A2 2 0 0021 15.382V6.418a2 2 0 00-1.106-1.789L15 2m-6 18V2m6 18V2" />
-        </svg>
-        <h1 class="text-6xl font-extrabold tracking-widest uppercase text-slate-900">Mappa</h1>
-      </div>
+      <!--mappa-->
+      <Mappa ref="mapparef" />
     </main>
 
     <aside 
@@ -87,6 +86,7 @@ import { useRouter } from 'vue-router';
 import { ref } from 'vue';
 import FormSegnalazione from './FormSegnalazione.vue';
 import FormSegnalazionePrivata from './FormSegnalazionePrivata.vue';
+import Mappa from './Mappa.vue';
 
 const router = useRouter();
 const user = getUser();
@@ -95,10 +95,14 @@ const isSidebarOpen = ref(false);
 const isModalOpen = ref(false);
 const isModalPrivataOpen = ref(false);
 const showSuccessBanner = ref(false);
+const mappaRef = ref(null);
 
 const onSegnalazioneSubmitted = () => {
   showSuccessBanner.value = true;
   setTimeout(() => { showSuccessBanner.value = false; }, 5000);
+
+  //dopo l'inserimento di una segnalazione si aggiorna la mappa
+  mappaRef.value?.refresh();
 }
 
 const handleLogout = () => {
