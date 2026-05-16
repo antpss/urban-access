@@ -1,7 +1,9 @@
 const mongoose = require('mongoose');
 const Cittadino = require('../models/Cittadino');
+const Segnalazione = require('../models/Segnalazione');
 const SegnalazionePubblica = require('../models/SegnalazionePubblica');
 const SegnalazionePrivata = require('../models/SegnalazionePrivata');
+const StrutturaPrivata = require('../models/StrutturaPrivata');
 
 //POST /api/v1/reports/public
 exports.createPublicReport = async (req, res) => {
@@ -141,3 +143,71 @@ exports.createPrivateReport = async (req, res) => {
         return res.status(500).json({ error: 'Errore interno del server' });
     }
 };
+
+exports.getReports = async (req, res) => {
+    try {
+        const { bbox, stato } = req.query;
+        const filter = {};
+
+        if (bbox) {
+            const parts = bbox.split(',').map(parseFloat);
+            if (parts.length === 4 && parts.some(Number.isNaN)) {
+                return res.status(400).json({
+                    error: 'Validzione fallita',
+                    details: [{ field: 'bbox', message: 'formato atteso: minLng,minLat,maxLng,maxLat' }]
+                })
+            }
+
+            const [minLng, minLat, maxLng, maxLat] = parts;
+
+            // check range coordinate valide
+            if (minLng < -180 || maxLng > 180 || minLat < -90 || maxLat > 90) {
+                return res.status(400).json({
+                    error: 'Validazione fallita',
+                    details: [{ field: 'bbox', messgae: 'coordinate fuori range'}]
+                })
+            }
+
+            // check min < max
+            if (minLng >= maxLng || minLat >= maxLat) {
+                return res.status(400).json({
+                    error: 'Validazione fallita',
+                    details: [{ field: 'bbox', message: 'minLng deve essere < maxLng e minLat < maxLat' }]
+                })
+            }
+
+            // query per filtrare segnalazioni che hanno geolocalizzazione all'interno del bbox
+            // viene sfruttato l'indice 2dsphere
+            filter.geolocalizzazione = {
+                $geoWithin: {
+                    $box: [[minLng, minLat], [maxLng, maxLat]]
+                }
+            };
+        }
+
+        if (stato) {
+            filter.stato = stato;
+        }
+
+        // eslcudi dalla visibilità segnalazioni private non ancora validate
+        // quindi in fase di "verifica"
+        const ruolo = req.loggedUser.ruolo;
+        if (ruolo === 'cittadino') {
+            filter.$or = [
+                {tipo: 'pubblica'},
+                {tipo: 'privata', visible: true}
+            ];
+        }
+
+        const segnalazione = await Segnalazione.find(filter).select('-__v -bloccaModifica -listaValidatori -numAnomalie').lean();
+
+        return res.status(200).json({
+            count: segnalazione.length,
+            segnalazioni
+        });
+        
+    } catch (err) {
+        return res.status(500).json({ error: 'Errore interno del server' });
+    }
+    
+}
