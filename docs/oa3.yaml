@@ -757,14 +757,6 @@ paths:
           required: false
           schema:
             type: string
-        - in: query
-          name: limit
-          required: false
-          schema:
-            type: integer
-            minimum: 1
-            maximum: 1000
-            default: 500
       responses:
         '200':
           description: Lista segnalazioni
@@ -785,7 +777,6 @@ paths:
             - formato `bbox` malformato (non rispetta la RegEx)
             - coordinate fuori range geografico
             - `stato` o `tipo` con valori non inclusi negli enum consentiti
-            - `limit` minore di 1 o maggiore di 1000
           content:
             application/json:
               schema:
@@ -795,8 +786,6 @@ paths:
                 details:
                   - field: bbox
                     message: "Formato bounding box non valido. Atteso minLng,minLat,maxLng,maxLat"
-                  - field: limit
-                    message: "Il parametro limit deve essere un intero compreso tra 1 e 1000"
         '401':
           description: |
             Autenticazione fallita. Il client non ha fornito credenziali valide. Possibili cause:
@@ -809,6 +798,14 @@ paths:
                 $ref: '#/components/schemas/Error'
               example:
                 error: Token non valido o scaduto
+        '500':
+          description: Errore interno del server.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                error: Errore interno del server
 
 components:
 
