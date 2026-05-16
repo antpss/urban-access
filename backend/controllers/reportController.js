@@ -81,8 +81,9 @@ exports.createPrivateReport = async (req, res) => {
             });
         }
 
-        // validazione strutturaAssociata come ObjectId valido
-        if (!strutturaAssociata || !mongoose.Types.ObjectId.isValid(strutturaAssociata)) {
+        // controllo che la stringa sia di HEX di 24 carattere per assicurare che sia un ObjectId valido
+        const HEX24 = /^[a-fA-F0-9]{24}$/i;
+        if (!strutturaAssociata || !HEX24.test(strutturaAssociata)) {
             return res.status(400).json({
                 error: 'Validazione fallita',
                 details: [{ field: 'strutturaAssociata', message: 'ID struttura mancante o non valido' }]
