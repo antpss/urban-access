@@ -45,14 +45,23 @@
           @click="isModalOpen = true" 
           class="w-full py-3.5 text-sm font-bold rounded-xl text-white bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-600 hover:to-teal-600 shadow-lg shadow-emerald-200 transition-all transform hover:-translate-y-0.5 active:translate-y-0"
         >
-          + Inserisci Segnalazione
+          + Inserisci Segnalazione Pubblica
         </button>
 
-          <button 
-    type="button"
-    @click="handleLogout" 
-    class="w-full py-3.5 text-sm font-bold rounded-xl text-rose-600 bg-slate-100 hover:bg-rose-600 hover:text-white transition-all transform hover:-translate-y-0.5 active:translate-y-0"
-  >
+        <button 
+          v-if="user?.ruolo === 'cittadino'"
+          type="button"
+          @click="isModalPrivataOpen = true" 
+          class="w-full py-3.5 text-sm font-bold rounded-xl text-emerald-600 bg-emerald-50 border border-emerald-100 hover:bg-emerald-100 transition-all transform hover:-translate-y-0.5 active:translate-y-0"
+        >
+          + Inserisci Segnalazione Privata
+        </button>
+
+        <button 
+          type="button"
+          @click="handleLogout" 
+          class="w-full py-3.5 text-sm font-bold rounded-xl text-rose-600 bg-slate-100 hover:bg-rose-600 hover:text-white transition-all transform hover:-translate-y-0.5 active:translate-y-0"
+        >
           Esci dall'account
         </button>
       </div>
@@ -68,28 +77,29 @@
     </transition>
 
     <FormSegnalazione v-model="isModalOpen" @submitted="onSegnalazioneSubmitted" />
+    <FormSegnalazionePrivata v-model="isModalPrivataOpen" @submitted="onSegnalazioneSubmitted" />
   </div>
 </template>
 
 <script setup>
 import { getUser, clearSession } from '../services/auth';
 import { useRouter } from 'vue-router';
-import { ref, computed} from 'vue';
+import { ref } from 'vue';
 import FormSegnalazione from './FormSegnalazione.vue';
+import FormSegnalazionePrivata from './FormSegnalazionePrivata.vue';
 
 const router = useRouter();
 const user = getUser();
-const API_BASE_URL = '/api/v1';
 
 const isSidebarOpen = ref(false);
 const isModalOpen = ref(false);
+const isModalPrivataOpen = ref(false);
 const showSuccessBanner = ref(false);
 
 const onSegnalazioneSubmitted = () => {
   showSuccessBanner.value = true;
-  setTimeout(() => {showSuccessBanner.value = false;}, 5000);
+  setTimeout(() => { showSuccessBanner.value = false; }, 5000);
 }
-
 
 const handleLogout = () => {
   clearSession();

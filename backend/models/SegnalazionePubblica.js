@@ -2,6 +2,21 @@ const mongoose = require('mongoose');
 const Segnalazione = require('./Segnalazione');
 
 const segnalazionePubblicaSchema = new mongoose.Schema({
+    categoria: {
+        type: String,
+        enum: {
+            values: [
+                'marciapiede_rotto',
+                'ostacolo_temporaneo',
+                'auto_sosta_vietata',
+                'scalino_non_segnalato',
+                'pavimentazione_dissestata',
+                'semaforo_non_accessibile',
+                'altro'
+            ],
+            message: 'Categoria pubblica "{VALUE}" non ammessa'
+        }
+    },
     // attributi specifici
     enteCompetente: {
         type: mongoose.Schema.Types.ObjectId,

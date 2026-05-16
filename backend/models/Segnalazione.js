@@ -1,16 +1,6 @@
 const mongoose = require('mongoose');
 
 const statoSegnalazione = ['APERTA', 'IN_VERIFICA', 'PRESA_IN_CARICO', 'RISOLTA', 'ARCHIVIATA'];
-const categoriaBarriera = [
-    'marciapiede_rotto',
-    'ostacolo_temporaneo',
-    'auto_sosta_vietata',
-    'scalino_non_segnalato',
-    'pavimentazione_dissestata',
-    'mancanza_rampa',
-    'semaforo_non_accessibile',
-    'altro'
-];
 
 //subschema GeoJSON Point
 const pointSchema = new mongoose.Schema({
@@ -49,11 +39,7 @@ const segnalazioneSchema = new mongoose.Schema({
     },
     categoria: {
         type: String,
-        required: [true, 'campo categoria obbligatorio'],
-        enum: {
-            values: categoriaBarriera,
-            message: 'categoria "{VALUE}" non ammessa'
-        }
+        required: [true, 'campo categoria obbligatorio']
     },
     foto: {
         //array di path relativi (es. "/uploads/segnalazioni/abc123.jpg")
@@ -92,4 +78,3 @@ segnalazioneSchema.index({ tipo: 1, stato: 1 });
 
 module.exports = mongoose.model('Segnalazione', segnalazioneSchema);
 module.exports.statoSegnalazione = statoSegnalazione;
-module.exports.categoriaBarriera = categoriaBarriera;
