@@ -42,7 +42,9 @@ async function caricaSegnalazioni() {
 
 onMounted(() => {
   // inizializzazione mappa su Trento
-  map = L.map(mapContainer.value).setView([46.0667, 11.1167], 14);
+  map = L.map(mapContainer.value, {
+    zoomControl: false
+  }).setView([46.0667, 11.1167], 14);
 
   //sfondo di openstreetmap
   L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {

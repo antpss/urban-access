@@ -8,7 +8,7 @@
       <button 
         @click="isSidebarOpen = true" 
         v-if="!isSidebarOpen"
-        class="absolute top-6 left-6 p-3 bg-white rounded-xl shadow-lg text-slate-700 hover:text-emerald-600 z-10 transition-all"
+        class="absolute top-6 left-6 p-3 bg-white rounded-xl shadow-lg text-slate-700 hover:text-emerald-600 z-401 transition-all"
       >
         <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
           <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16" />
