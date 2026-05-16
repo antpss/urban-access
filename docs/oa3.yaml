@@ -34,7 +34,7 @@ info:
     Attualmente l'unico campo modificabile è `profiloDisabilita`, riservato ai cittadini, che accetta un array di disabilità.
 
     ## Asset statici (foto segnalazioni)
-    Le foto caricate dai cittadini in `POST /reports/public` vengono
+    Le foto caricate dai cittadini in `POST /reports/public` e `POST /reports/private` vengono
     salvate su disco e servite come asset statici da `GET /uploads/reports/{filename}`.
     Tali URL **NON** sono parte dell'API REST documentata: sono risorse pubbliche
     raggiungibili direttamente.
@@ -205,8 +205,7 @@ paths:
                   nome: Luigi
                   cognome: Bianchi
                   ruolo: proprietario
-                  profiloDisabilita: []
-                  scoreAffidabilita: 0
+                  partitaIVA: '12345678901'
                   createdAt: '2026-05-12T14:35:00.000Z'
         '400':
           description: |
@@ -222,12 +221,13 @@ paths:
               example:
                 error: Validazione fallita
                 details:
-                  - field: email
-                    message: Formato email non valido
-                  - field: password
-                    message: Password minimo 8 caratteri
+                  - field: partitaIVA
+                    message: 'partitaIVA non valida'
         '409':
-          description: Email già registrata nel sistema.
+          description: |
+            Conflitto su campo univoco. Si verifica quando l'email o la
+            partitaIVA sono già registrate nel sistema. Il campo in conflitto
+            è specificato nel messaggio di errore.
           content:
             application/json:
               schema:
@@ -291,11 +291,14 @@ paths:
                   nome: Mario
                   cognome: Rossi
                   ruolo: cittadino
+                  profiloDisabilita: []
+                  scoreAffidabilita: 0
                   createdAt: '2026-05-12T14:30:00.000Z'
         '400':
           description: |
             Dati di input non validi. Possibili cause:
             - campo obbligatorio mancante (email o password)
+            - email o password non sono stringhe
           content:
             application/json:
               schema:
@@ -405,13 +408,21 @@ paths:
             Autenticazione fallita. Possibili cause:
             - token mancante nell'header `Authorization`
             - token non valido (firma errata, formato errato, ecc.)
-            - token scaduto (oltre 24 ore dalla generazione)
+            - token scaduto (oltre 2 ore dalla generazione)
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/Error'
-              example:
-                error: Token scaduto
+              examples:
+                tokenMancante:
+                  value:
+                    error: Token mancante
+                tokenScaduto:
+                  value:
+                    error: Token scaduto
+                tokenNonValido:
+                  value:
+                    error: Token non valido
         '403':
           description: |
             Ruolo autenticato ma non autorizzato.
@@ -437,6 +448,8 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/Error'
+              example:
+                error: Errore interno del server
 
   /reports/public:
     post:
@@ -466,9 +479,10 @@ paths:
         inversione.
 
         ## Foto
-        Massimo **5 file**, ciascuno **≤ 5MB**, estensioni ammesse:
-        `image/jpeg`, `image/png`, `image/webp`. Il server rifiuta file che non 
-        rispettano questi vincoli.
+        Massimo **5 file**, ciascuno **≤ 5MB**, MIME ammessi:
+        `image/jpeg`, `image/png`, `image/webp`. Il server rifiuta file che non
+        rispettano questi vincoli. Campo opzionale: una segnalazione può essere
+        creata anche senza foto.
 
         ## Stato iniziale
         Le segnalazioni pubbliche partono in stato `APERTA` e sono
@@ -478,8 +492,7 @@ paths:
 
         ## Comportamento server-side
         - L'`autore` viene impostato dal JWT, non dal client (mitigazione spoofing).
-        - In caso di fallimento del salvataggio su DB dopo che i file sono
-          già stati scritti su disco, il server tenta un cleanup dei file orfani.
+        - L'`_id` della segnalazione viene aggiunto a `storicoSegnalazioni` del cittadino.
       operationId: creaSegnalazionePubblica
       security:
         - bearerAuth: []
@@ -504,7 +517,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/CreateSegnalazioneResponse'
+                $ref: '#/components/schemas/CreateSegnalazionePubblicaResponse'
               example:
                 message: Segnalazione creata con successo
                 segnalazione:
@@ -551,7 +564,7 @@ paths:
               schema:
                 $ref: '#/components/schemas/Error'
               example:
-                error: Token non valido o scaduto
+                error: Token mancante
         '403':
           description: |
             Ruolo non autorizzato. Solo il ruolo `cittadino` può creare
@@ -571,6 +584,7 @@ paths:
                 $ref: '#/components/schemas/Error'
               example:
                 error: Errore interno del server
+
   /reports/private:
     post:
       tags:
@@ -601,17 +615,47 @@ paths:
       responses:
         '201':
           description: Segnalazione privata creata e messa in verifica.
+          headers:
+            Location:
+              schema:
+                type: string
+              description: URL della risorsa appena creata.
+              example: /api/v1/reports/65b4f4e7b8d9c1f4a2e5b6d2
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/CreateSegnalazionePrivataResponse'
+              example:
+                message: Segnalazione privata creata con successo ed in attesa di validazione
+                segnalazione:
+                  _id: 65b4f4e7b8d9c1f4a2e5b6d2
+                  tipo: privata
+                  descrizione: Assenza di rampa all'ingresso del locale, impossibile entrare con sedia a rotelle.
+                  categoria: mancanza_rampa
+                  stato: IN_VERIFICA
+                  geolocalizzazione:
+                    type: Point
+                    coordinates: [11.1217, 46.0700]
+                  foto:
+                    - /uploads/segnalazioni/1747320000000-foto_ingresso.jpg
+                  autore: 65a3f4e7b8d9c1f4a2e5b6c7
+                  strutturaAssociata: 65b4f4e7b8d9c1f4a2e5b6a9
+                  scoreAssociato: 0
+                  sogliaValidazione: 10
+                  listaValidatori: []
+                  numAnomalie: 0
+                  sogliaAllarme: 5
+                  visibile: false
+                  bloccaModifica: false
+                  createdAt: '2026-05-15T09:20:00.000Z'
+                  updatedAt: '2026-05-15T09:20:00.000Z'
         '400':
           description: |
             Dati di input non validi. Possibili cause:
-            - campo obbligatorio mancante (`descrizione`, `categoria`, `longitudine`, `latitudine`)
+            - campo obbligatorio mancante (`strutturaAssociata`, `descrizione`, `categoria`, `longitudine`, `latitudine`)
+            - `strutturaAssociata` formato ObjectId non valido
             - `categoria` fuori enum
-            - coordinate fuori range (`longitudine` ∉ [-180, 180], `latitudine` ∉ [-90, 90])
-            - coordinate non numeriche
+            - coordinate fuori range o non numeriche
             - `descrizione` troppo breve (< 10 caratteri) o troppo lunga (> 1000)
             - estensione non accettata (estensioni valide: '.jpeg', '.png', '.webp')
             - dimensione file >5MB      
@@ -620,13 +664,21 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ValidationError'
-              example:
-                error: Validazione fallita
-                details:
-                  - field: categoria
-                    message: 'categoria "marciapide" non ammessa'
-                  - field: latitudine
-                    message: 'coordinate non valide: lat∈[-90,90]'
+              examples:
+                idStrutturaMalformato:
+                  summary: ObjectId della struttura sintatticamente non valido
+                  value:
+                    error: Validazione fallita
+                    details:
+                      - field: strutturaAssociata
+                        message: ID struttura mancante o formato non valido
+                coordinateInvalide:
+                  summary: Coordinate fuori range
+                  value:
+                    error: Validazione fallita
+                    details:
+                      - field: geolocalizzazione.coordinates
+                        message: 'coordinate non valide: atteso [lng, lat] con lng∈[-180,180], lat∈[-90,90]'
         '401':
           description: Token mancante, non valido o scaduto.
           content:
@@ -646,6 +698,16 @@ paths:
                 $ref: '#/components/schemas/Error'
               example:
                 error: 'Accesso negato: ruolo non autorizzato'
+        '404':
+          description: |
+            Struttura non trovata. L'`ObjectId` fornito in `strutturaAssociata`
+            è sintatticamente valido ma non corrisponde ad alcuna struttura nel database.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                error: Struttura non trovata
         '500':
           description: Errore interno del server.
           content:
@@ -656,6 +718,7 @@ paths:
                 error: Errore interno del server
 
 components:
+
   securitySchemes:
     bearerAuth:
       type: http
@@ -663,6 +726,8 @@ components:
       bearerFormat: JWT
       description: |
         Token JWT ottenuto da `POST /auth/login` o `POST /auth/register/*`.
+        Scadenza: 2 ore. Header atteso: `Authorization: Bearer <token>`.
+
   schemas:
 
     LoginRequest:
@@ -694,10 +759,10 @@ components:
       properties:
         message:
           type: string
-          example: Login effettuato con successo
+          example: Login avvenuto con successo
         token:
           type: string
-          example: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
+          example: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.example_token_login
         user:
           $ref: '#/components/schemas/UserPublic'
 
@@ -718,6 +783,7 @@ components:
           type: string
           format: password
           minLength: 8
+          maxLength: 128
           example: SecurePassword12345
         nome:
           type: string
@@ -744,6 +810,7 @@ components:
           type: string
           format: password
           minLength: 8
+          maxLength: 128
           example: SecurePassword12345
         nome:
           type: string
@@ -769,13 +836,16 @@ components:
           example: Registrazione avvenuta con successo
         token:
           type: string
-          example: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
+          example: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.example_token
         user:
           $ref: '#/components/schemas/UserPublic'
 
     UserPublic:
       type: object
-      description: Rappresentazione pubblica utente.
+      description: |
+        Rappresentazione pubblica utente. Alcuni campi sono presenti solo
+        per specifici ruoli (es. `profiloDisabilita`/`scoreAffidabilita` per cittadini,
+        `partitaIVA` per proprietari).
       required:
         - _id
         - email
@@ -790,15 +860,20 @@ components:
         email:
           type: string
           format: email
+          example: mario.rossi@example.com
         nome:
           type: string
+          example: Mario
         cognome:
           type: string
+          example: Rossi
         ruolo:
           type: string
           enum: [cittadino, proprietario, operatore]
+          example: cittadino
         profiloDisabilita:
           type: array
+          description: Presente solo per ruolo `cittadino`.
           items:
             type: string
             enum: [sediaARotelle, cecita, sordita, ausilioDeambulazione]
@@ -806,6 +881,7 @@ components:
         scoreAffidabilita:
           type: number
           minimum: 0
+          description: Presente solo per ruolo `cittadino`.
           example: 0
         partitaIVA:
           type: string
@@ -893,6 +969,59 @@ components:
             type: number
           example: [11.1217, 46.0700]
 
+    SegnalazioneBase:
+      type: object
+      description: |
+        Schema base condiviso tra `SegnalazionePubblica` e `SegnalazionePrivata`.
+        Corrisponde al modello Mongoose con `discriminatorKey: 'tipo'`.
+      properties:
+        _id:
+          type: string
+          pattern: '^[a-f0-9]{24}$'
+          example: 65b4f4e7b8d9c1f4a2e5b6d1
+        tipo:
+          type: string
+          enum: [pubblica, privata]
+          description: Discriminator key.
+        descrizione:
+          type: string
+          minLength: 10
+          maxLength: 1000
+        categoria:
+          $ref: '#/components/schemas/CategoriaBarriera'
+        stato:
+          $ref: '#/components/schemas/StatoSegnalazione'
+        geolocalizzazione:
+          $ref: '#/components/schemas/GeoJSONPoint'
+        foto:
+          type: array
+          description: |
+            Array di URL relativi delle foto caricate. Formato filename:
+            `{timestamp}-{nome_originale_sanitizzato}.{ext}`.
+          maxItems: 5
+          items:
+            type: string
+            example: /uploads/segnalazioni/1747320000000-foto_marciapiede.jpg
+        autore:
+          type: string
+          pattern: '^[a-f0-9]{24}$'
+          description: ObjectId del cittadino che ha creato la segnalazione.
+          example: 65a3f4e7b8d9c1f4a2e5b6c7
+        bloccaModifica:
+          type: boolean
+          description: |
+            Se `true`, la segnalazione è in stato terminale e non
+            modificabile (es. RISOLTA, ARCHIVIATA).
+          example: false
+        createdAt:
+          type: string
+          format: date-time
+          example: '2026-05-15T09:20:00.000Z'
+        updatedAt:
+          type: string
+          format: date-time
+          example: '2026-05-15T09:20:00.000Z'
+
     CreateSegnalazionePubblicaForm:
       type: object
       description: |
@@ -932,71 +1061,28 @@ components:
             format: binary
 
     SegnalazionePubblica:
-      type: object
       description: |
         Rappresentazione completa di una segnalazione su suolo pubblico
-        (discriminator `tipo = "pubblica"` della collezione `segnalazioni`).
-      required:
-        - _id
-        - tipo
-        - descrizione
-        - categoria
-        - stato
-        - geolocalizzazione
-        - foto
-        - autore
-        - bloccaModifica
-        - createdAt
-        - updatedAt
-      properties:
-        _id:
-          type: string
-          example: 65b4f4e7b8d9c1f4a2e5b6d1
-        tipo:
-          type: string
-          enum: [pubblica]
-          description: Discriminator key. Sempre `pubblica` per questo schema.
-        descrizione:
-          type: string
-        categoria:
-          $ref: '#/components/schemas/CategoriaBarriera'
-        stato:
-          $ref: '#/components/schemas/StatoSegnalazione'
-        geolocalizzazione:
-          $ref: '#/components/schemas/GeoJSONPoint'
-        foto:
-          type: array
-          description: Array di URL relativi delle foto caricate.
-          items:
-            type: string
-            example: /uploads/reports/1715760000000_a1b2c3d4e5f6.jpg
-        autore:
-          type: string
-          description: ObjectId dell'utente (cittadino) che ha creato la segnalazione.
-          example: 65a3f4e7b8d9c1f4a2e5b6c7
-        enteCompetente:
-          type: string
-          nullable: true
-          description: |
-            ObjectId dell'operatore comunale assegnato. `null` finché non
-            avviene l'assegnazione.
-          example: null
-        bloccaModifica:
-          type: boolean
-          description: |
-            Se `true`, la segnalazione è in stato terminale e non
-            modificabile (es. RISOLTA, ARCHIVIATA).
-          example: false
-        createdAt:
-          type: string
-          format: date-time
-        updatedAt:
-          type: string
-          format: date-time
+        (discriminator `tipo = "pubblica"`).
+      allOf:
+        - $ref: '#/components/schemas/SegnalazioneBase'
+        - type: object
+          properties:
+            tipo:
+              type: string
+              enum: [pubblica]
+            enteCompetente:
+              type: string
+              nullable: true
+              pattern: '^[a-f0-9]{24}$'
+              description: |
+                ObjectId dell'operatore comunale assegnato. `null` finché non
+                avviene l'assegnazione.
+              example: null
 
-    CreateSegnalazioneResponse:
+    CreateSegnalazionePubblicaResponse:
       type: object
-      description: Risposta alla creazione di una segnalazione.
+      description: Risposta alla creazione di una segnalazione pubblica.
       required:
         - message
         - segnalazione
@@ -1007,38 +1093,12 @@ components:
         segnalazione:
           $ref: '#/components/schemas/SegnalazionePubblica'
 
-    Error:
-      type: object
-      required:
-        - error
-      properties:
-        error:
-          type: string
-        message:
-          type: string
-
-    ValidationError:
-      type: object
-      required:
-        - error
-        - details
-      properties:
-        error:
-          type: string
-          example: Validazione fallita
-        details:
-          type: array
-          items:
-            type: object
-            properties:
-              field:
-                type: string
-              message:
-                type: string
-    
     CreateSegnalazionePrivataForm:
       type: object
-      description: Payload multipart per la creazione di una segnalazione privata.
+      description: |
+        Payload `multipart/form-data` per la creazione di una segnalazione privata.
+        Identico a `CreateSegnalazionePubblicaForm` con in più il campo obbligatorio
+        `strutturaAssociata`.
       properties:
         strutturaAssociata:
           type: string
@@ -1053,9 +1113,11 @@ components:
           $ref: '#/components/schemas/CategoriaBarriera'
         longitudine:
           type: string
+          description: Range [-180, 180].
           example: '11.1217'
         latitudine:
           type: string
+          description: Range [-90, 90].
           example: '46.0700'
         foto:
           type: array
@@ -1065,39 +1127,52 @@ components:
             format: binary
 
     SegnalazionePrivata:
-      type: object
       description: |
         Rappresentazione di una segnalazione su struttura privata
         (discriminator `tipo = "privata"`).
       allOf:
-        - $ref: '#/components/schemas/SegnalazionePubblica'
-      properties:
-        tipo:
-          type: string
-          enum: [privata]
-        strutturaAssociata:
-          type: string
-          description: ObjectId della StrutturaPrivata.
-        scoreAssociato:
-          type: number
-          example: 0
-        sogliaValidazione:
-          type: number
-          example: 10
-        listaValidatori:
-          type: array
-          items:
-            type: string
-          description: Array di ObjectId dei Cittadini che hanno supportato la segnalazione.
-        numAnomalie:
-          type: integer
-          example: 0
-        sogliaAllarme:
-          type: integer
-          example: 5
-        visibile:
-          type: boolean
-          example: false
+        - $ref: '#/components/schemas/SegnalazioneBase'
+        - type: object
+          properties:
+            tipo:
+              type: string
+              enum: [privata]
+            strutturaAssociata:
+              type: string
+              pattern: '^[a-f0-9]{24}$'
+              description: ObjectId della `StrutturaPrivata` associata.
+              example: 65b4f4e7b8d9c1f4a2e5b6a9
+            scoreAssociato:
+              type: number
+              minimum: 0
+              description: Punteggio accumulato tramite endorsement crowdsourcing.
+              example: 0
+            sogliaValidazione:
+              type: number
+              description: Soglia di score per rendere visibile la segnalazione.
+              example: 10
+            listaValidatori:
+              type: array
+              description: Array di ObjectId dei cittadini che hanno supportato la segnalazione (evita voti doppi).
+              items:
+                type: string
+                pattern: '^[a-f0-9]{24}$'
+              example: []
+            numAnomalie:
+              type: integer
+              minimum: 0
+              description: Contatore di comportamenti anomali rilevati.
+              example: 0
+            sogliaAllarme:
+              type: integer
+              description: Soglia di anomalie oltre la quale viene generato un allarme al comune.
+              example: 5
+            visibile:
+              type: boolean
+              description: |
+                Se `false`, la segnalazione non appare sulla mappa pubblica.
+                Diventa `true` solo quando `scoreAssociato >= sogliaValidazione`.
+              example: false
 
     CreateSegnalazionePrivataResponse:
       type: object
@@ -1107,3 +1182,91 @@ components:
           example: Segnalazione privata creata con successo ed in attesa di validazione
         segnalazione:
           $ref: '#/components/schemas/SegnalazionePrivata'
+
+    StrutturaPrivata:
+      type: object
+      description:  |
+        Rappresentazione di una struttura privata registrata da un proprietario.
+        Le strutture sono il "target" delle segnalazioni private.
+      properties:
+        _id:
+          type: string
+          example: 65b4f4e7b8d9c1f4a2e5b6a9
+        nome:
+          type: string
+          minLength: 2
+          maxLength: 100
+          example: Bar Centrale
+        categoria:
+          type: string
+          enum:
+            - ristorante
+            - bar
+            - negozio
+            - ufficio
+            - hotel
+            - studio_medico
+            - palestra
+            - altro
+          example: bar
+        indirizzo:
+          type: string
+          minLength: 5
+          maxLength: 200
+          example: Via Roma 12, Trento
+        geolocalizzazione:
+          $ref: '#/components/schemas/GeoJSONPoint'
+        proprietario:
+          type: string
+          pattern: '^[a-f0-9]{24}$'
+          description: ObjectId del proprietario che ha registrato la struttura.
+          example: 65a3f4e7b8d9c1f4a2e5b6c8
+        stato:
+          type: string
+          enum: [attiva, dismessa]
+          default: attiva
+          example: attiva
+        createdAt:
+          type: string
+          format: date-time
+          example: '2026-05-14T10:00:00.000Z'
+        updatedAt:
+          type: string
+          format: date-time
+          example: '2026-05-14T10:00:00.000Z'
+
+    Error:
+      type: object
+      required:
+        - error
+      properties:
+        error:
+          type: string
+          description: Messaggio di errore human-readable.
+          example: Errore interno del server
+
+    ValidationError:
+      type: object
+      required:
+        - error
+        - details
+      properties:
+        error:
+          type: string
+          example: Validazione fallita
+        details:
+          type: array
+          items:
+            type: object
+            required:
+              - field
+              - message
+            properties:
+              field:
+                type: string
+                description: Nome del campo che ha fallito la validazione.
+                example: categoria
+              message:
+                type: string
+                description: Messaggio di errore specifico del campo.
+                example: 'categoria "marciapide" non ammessa'
