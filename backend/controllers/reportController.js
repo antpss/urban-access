@@ -208,7 +208,7 @@ exports.getReports = async (req, res) => {
                     details: [{ field: 'tipo', message: `valore non ammesso. Ammessi: ${TIPI_AMMESSI.join(', ')}` }]
                 });
             }
-            filter.tempo = tipo;
+            filter.tipo = tipo;
         }
 
         //filtro categoria
