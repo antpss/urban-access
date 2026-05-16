@@ -19,4 +19,10 @@ router.post('/private',
     uploadFotoSegnalazione,
     reportController.createPrivateReport
 );
+
+// GET /api/v1/reports
+router.get('/', 
+    verifyToken,
+    reportController.getReports
+)
 module.exports = router;
