@@ -10,6 +10,7 @@ require('./models/Segnalazione');
 require('./models/SegnalazionePubblica');
 require('./models/SegnalazionePrivata');
 require('./models/StrutturaPrivata');
+const multer = require('multer');
 
 
 
@@ -47,6 +48,36 @@ app.use('/api/v1/auth', authRoutes);
 app.use('/api/v1/users', usersRoutes);
 app.use('/api/v1/reports', reportsRoutes);
 
+app.use('/api', (err, req, res, next) => {
+    if (err instanceof multer.MulterError) {
+        const fieldMap = {
+            LIMIT_FILE_SIZE: 'dimensione file superiore a 5MB',
+            LIMIT_FILE_COUNT: 'massimo 5 foto per segnalazione',
+            LIMIT_UNEXPECTED_FILE: 'formato file non supportato'
+        };
+        return res.status(400).json({
+            error: 'Validazione fallita',
+            details: [{
+                field: err.field || 'foto',
+                message: fieldMap[err.code] || err.message
+            }]
+        });
+    }
+
+    if (err && err.code === 'INVALID_FILE_TYPE') {
+        return res.status(400).json({
+            error: 'Validazione fallita',
+            details: [{ field: 'foto', message: err.message }]
+        });
+    }
+
+    if (!err) {
+        return res.status(404).json({error: 'Endpoint non trovato'});
+    }
+
+    return res.status(500).json({ error: 'Errore interno del server' });
+});
+
 //404 JSON per API non trovate (PRIMA del fallback SPA)
 app.use('/api', (req, res) => {
     res.status(404).json({ error: 'Endpoint non trovato' });
@@ -80,7 +111,7 @@ const shutdown = async (signal) => {
         });
     } else {
         await mongoose.connection.close();
-        process.exit(0);1000
+        process.exit(0);
     }
 };
 
