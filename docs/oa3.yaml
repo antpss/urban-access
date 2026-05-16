@@ -716,6 +716,100 @@ paths:
                 $ref: '#/components/schemas/Error'
               example:
                 error: Errore interno del server
+                
+  /reports:
+    get:
+      summary: Recupera segnalazioni filtrate per area geografica e stato
+      description: |
+        Restituisce l'elenco delle segnalazioni filtrate via query parameter.
+        Pensato per il caricamento della mappa lato client: il client passa
+        la bounding box del viewport corrente e riceve solo i marker rilevanti.
+        Le segnalazioni private non visibili (sotto soglia di validazione)
+        sono escluse dalla risposta per i cittadini.
+      tags:
+        - Segnalazioni
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: query
+          name: bbox
+          required: false
+          schema:
+            type: string
+            pattern: '^-?\d+(\.\d+)?,-?\d+(\.\d+)?,-?\d+(\.\d+)?,-?\d+(\.\d+)?$'
+          description: |
+            Bounding box nel formato "minLng,minLat,maxLng,maxLat".
+            Esempio: "11.10,46.05,11.15,46.10"
+          example: "11.10,46.05,11.15,46.10"
+        - in: query
+          name: stato
+          required: false
+          schema:
+            type: string
+            enum: [APERTA, IN_VERIFICA, PRESA_IN_CARICO, RISOLTA, ARCHIVIATA]
+        - in: query
+          name: tipo
+          required: false
+          schema:
+            type: string
+            enum: [pubblica, privata]
+        - in: query
+          name: categoria
+          required: false
+          schema:
+            type: string
+        - in: query
+          name: limit
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 1000
+            default: 500
+      responses:
+        '200':
+          description: Lista segnalazioni
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  count:
+                    type: integer
+                  segnalazioni:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Segnalazione'
+        '400':
+          description: |
+            Parametri di query non validi. Possibili cause:
+            - formato `bbox` malformato (non rispetta la RegEx)
+            - coordinate fuori range geografico
+            - `stato` o `tipo` con valori non inclusi negli enum consentiti
+            - `limit` minore di 1 o maggiore di 1000
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ValidationError'
+              example:
+                error: Validazione fallita
+                details:
+                  - field: bbox
+                    message: "Formato bounding box non valido. Atteso minLng,minLat,maxLng,maxLat"
+                  - field: limit
+                    message: "Il parametro limit deve essere un intero compreso tra 1 e 1000"
+        '401':
+          description: |
+            Autenticazione fallita. Il client non ha fornito credenziali valide. Possibili cause:
+            - Token JWT mancante nell'header `Authorization`
+            - Token malformato, alterato o non valido
+            - Token scaduto
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                error: Token non valido o scaduto
 
 components:
 
@@ -1234,6 +1328,28 @@ components:
           type: string
           format: date-time
           example: '2026-05-14T10:00:00.000Z'
+    
+    Segnalazione:
+      type: object
+      properties:
+        _id: { type: string }
+        tipo: { type: string, enum: [pubblica, privata] }
+        categoria: { type: string }
+        descrizione: { type: string }
+        stato: { type: string }
+        geolocalizzazione:
+          type: object
+          properties:
+            type: { type: string, enum: [Point] }
+            coordinates:
+              type: array
+              items: { type: number }
+              minItems: 2
+              maxItems: 2
+        foto:
+          type: array
+          items: { type: string }
+        createdAt: { type: string, format: date-time }
 
     Error:
       type: object
