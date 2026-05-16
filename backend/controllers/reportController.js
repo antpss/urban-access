@@ -145,14 +145,17 @@ exports.createPrivateReport = async (req, res) => {
     }
 };
 
+const STATI_AMMESSI = ['APERTA', 'IN_VERIFICA', 'PRESA_IN_CARICO', 'RISOLTA', 'ARCHIVIATA'];
+const TIPI_AMMESSI = ['pubblica', 'privata'];
+
 exports.getReports = async (req, res) => {
     try {
-        const { bbox, stato } = req.query;
+        const { bbox, stato, tipo, categoria } = req.query;
         const filter = {};
 
         if (bbox) {
             const parts = bbox.split(',').map(parseFloat);
-            if (parts.length !== 4 && parts.some(Number.isNaN)) {
+            if (parts.length !== 4 || parts.some(Number.isNaN)) {
                 return res.status(400).json({
                     error: 'Validazione fallita',
                     details: [{ field: 'bbox', message: 'formato atteso: minLng,minLat,maxLng,maxLat' }]
@@ -186,18 +189,52 @@ exports.getReports = async (req, res) => {
             };
         }
 
+        //filtro stato
         if (stato) {
+            if (!STATI_AMMESSI.includes(stato)) {
+                return res.status(400).json({
+                    error: 'Validazione fallita',
+                    details: [{ field: 'stato', message: `valore non ammesso. Ammessi: ${STATI_AMMESSI.join(', ')}` }]
+                });
+            }
             filter.stato = stato;
         }
+
+        //filtro tipo
+        if (tipo) {
+            if (!TIPI_AMMESSI.includes(tipo)) {
+                return res.status(400).json({
+                    error: 'Validazione fallita',
+                    details: [{ field: 'tipo', message: `valore non ammesso. Ammessi: ${TIPI_AMMESSI.join(', ')}` }]
+                });
+            }
+            filter.tempo = tipo;
+        }
+
+        //filtro categoria
+        //se la categoria non matcha con  nulla, il filtro restituisce 0
+        if (categoria) {
+            filter.categoria = categoria;
+        }
+
+
 
         // eslcudi dalla visibilità segnalazioni private non ancora validate
         // quindi in fase di "verifica"
         const ruolo = req.loggedUser.ruolo;
         if (ruolo === 'cittadino') {
-            filter.$or = [
-                {tipo: 'pubblica'},
-                {tipo: 'privata', visibile: true}
-            ];
+            if (filter.tipo === 'privata') {
+                //il cittadino chiede esplicitamente solo le private: limita alle visibili.
+                filter.visibile = true;
+            } else if (filter.tipo === 'pubblica') {
+                //se il cittadino chiede esplicitamente solo le pubbliche nessun vincolo aggiuntivo.
+            } else {
+                //nessun filtro tipo: applica la regola standard 
+                filter.$or = [
+                    { tipo: 'pubblica' },
+                    { tipo: 'privata', visibile: true }
+                ];
+            }
         }
 
         const segnalazioni = await Segnalazione.find(filter).select('-__v -bloccaModifica -listaValidatori -numAnomalie').lean();
