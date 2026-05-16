@@ -81,5 +81,4 @@ strutturaPrivataSchema.index({ geolocalizzazione: '2dsphere' });
 strutturaPrivataSchema.index({ proprietario: 1, stato: 1 });
 
 module.exports = mongoose.model('StrutturaPrivata', strutturaPrivataSchema);
-module.exports.statoStruttura = statoStruttura;
 module.exports.categoriaStruttura = categoriaStruttura;
