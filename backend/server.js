@@ -79,7 +79,7 @@ const shutdown = async (signal) => {
         });
     } else {
         await mongoose.connection.close();
-        process.exit(0);
+        process.exit(0);1000
     }
 };
 
