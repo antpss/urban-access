@@ -34,13 +34,13 @@ const userSchema = new mongoose.Schema({
 }, { timestamps: true, discriminatorKey: 'ruolo', collection: 'users' });
 
 
-// Hashing della password prima del salvataggio
+//hashing della password prima del salvataggio
 userSchema.pre('save', async function() {
     if (!this.isModified('password')) return;
     this.password = await bcrypt.hash(this.password, 12);
 });
 
-// Compara password inserita con quella salvata
+//compara password inserita con quella salvata
 userSchema.methods.comparePassword = function(insertedPassword) {
     return bcrypt.compare(insertedPassword, this.password);
 };
