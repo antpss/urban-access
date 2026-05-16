@@ -9,6 +9,7 @@ require('./models/Proprietario');
 require('./models/Segnalazione');
 require('./models/SegnalazionePubblica');
 require('./models/SegnalazionePrivata');
+require('./models/StrutturaPrivata');
 
 
 
