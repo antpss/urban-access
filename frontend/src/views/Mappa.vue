@@ -19,8 +19,20 @@ let map = null;
 //funzione che scarica i dati dal backend e li visualizza su mappa
 async function caricaSegnalazioni() {
   try {
+    // calcola bbox dalla viewport corrente della mappa
+    const bounds = map.getBounds();
+    const southWest = bounds.getSouthWest();
+    const northEast = bounds.getNorthEast();
+    const bbox = `${southWest.lng},${southWest.lat},${northEast.lng},${northEast.lat}`;
+
     //chiamata
-    const response = await authFetch('/api/v1/reports?bbox=${bbox}&stato=APERTA');
+    const response = await authFetch(`/api/v1/reports?bbox=${bbox}&stato=APERTA`);
+
+    if (!response.ok) {
+      console.error('Errore API:', response.status, await response.text());
+      return;
+    }
+    
     const data = await response.json();
     
     //si cicla sui dati ricevuti da mongodb

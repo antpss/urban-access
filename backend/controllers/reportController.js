@@ -152,9 +152,9 @@ exports.getReports = async (req, res) => {
 
         if (bbox) {
             const parts = bbox.split(',').map(parseFloat);
-            if (parts.length === 4 && parts.some(Number.isNaN)) {
+            if (parts.length !== 4 && parts.some(Number.isNaN)) {
                 return res.status(400).json({
-                    error: 'Validzione fallita',
+                    error: 'Validazione fallita',
                     details: [{ field: 'bbox', message: 'formato atteso: minLng,minLat,maxLng,maxLat' }]
                 })
             }
@@ -165,7 +165,7 @@ exports.getReports = async (req, res) => {
             if (minLng < -180 || maxLng > 180 || minLat < -90 || maxLat > 90) {
                 return res.status(400).json({
                     error: 'Validazione fallita',
-                    details: [{ field: 'bbox', messgae: 'coordinate fuori range'}]
+                    details: [{ field: 'bbox', message: 'coordinate fuori range'}]
                 })
             }
 
@@ -196,18 +196,19 @@ exports.getReports = async (req, res) => {
         if (ruolo === 'cittadino') {
             filter.$or = [
                 {tipo: 'pubblica'},
-                {tipo: 'privata', visible: true}
+                {tipo: 'privata', visibile: true}
             ];
         }
 
-        const segnalazione = await Segnalazione.find(filter).select('-__v -bloccaModifica -listaValidatori -numAnomalie').lean();
+        const segnalazioni = await Segnalazione.find(filter).select('-__v -bloccaModifica -listaValidatori -numAnomalie').lean();
 
         return res.status(200).json({
-            count: segnalazione.length,
+            count: segnalazioni.length,
             segnalazioni
         });
-        
+
     } catch (err) {
+        console.error('[GET /reports]', err);
         return res.status(500).json({ error: 'Errore interno del server' });
     }
     
