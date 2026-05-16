@@ -2,6 +2,7 @@ const mongoose = require('mongoose');
 const Cittadino = require('../models/Cittadino');
 const SegnalazionePubblica = require('../models/SegnalazionePubblica');
 const SegnalazionePrivata = require('../models/SegnalazionePrivata');
+const StrutturaPrivata = require('../models/StrutturaPrivata');
 
 //POST /api/v1/reports/public
 exports.createPublicReport = async (req, res) => {
