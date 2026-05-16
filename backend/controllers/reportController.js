@@ -81,10 +81,18 @@ exports.createPrivateReport = async (req, res) => {
         }
 
         // validazione strutturaAssociata come ObjectId valido
-        if (!mongoose.Types.ObjectId.isValid(strutturaAssociata)) {
+        if (!strutturaAssociata || !mongoose.Types.ObjectId.isValid(strutturaAssociata)) {
             return res.status(400).json({
                 error: 'Validazione fallita',
                 details: [{ field: 'strutturaAssociata', message: 'ID struttura mancante o non valido' }]
+            });
+        }
+
+        //controllo se struttura associata esiste davverop
+        const struttura = await StrutturaPrivata.findById(strutturaAssociata);
+        if (!struttura) {
+            return res.status(404).json({
+                error: 'Struttura non trovata'
             });
         }
 
