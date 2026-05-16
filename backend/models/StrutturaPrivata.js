@@ -33,7 +33,7 @@ const pointSchema = new mongoose.Schema({
                     && arr[1] >= -90  && arr[1] <= 90;
             },
 
-            message: 'coordinate non valide: atteso [lng, lat] con lng∈[-180,180], lat∈[-90,90]'
+            message: 'coordinate fuori range consentito'
         }
     }
 }, { _id: false });//specifichiamo che non serve l'id perchè questo schema è dentro strutturaPrivata che ha un id
@@ -81,5 +81,4 @@ strutturaPrivataSchema.index({ geolocalizzazione: '2dsphere' });
 strutturaPrivataSchema.index({ proprietario: 1, stato: 1 });
 
 module.exports = mongoose.model('StrutturaPrivata', strutturaPrivataSchema);
-module.exports.statoStruttura = statoStruttura;
 module.exports.categoriaStruttura = categoriaStruttura;

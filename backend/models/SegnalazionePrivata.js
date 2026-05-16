@@ -4,6 +4,7 @@ const Segnalazione = require('./Segnalazione');
 const segnalazionePrivataSchema = new mongoose.Schema({
     categoria: {
         type: String,
+        required: [true, 'campo categoria obbligatorio'],
         enum: {
             values: [
                 'mancanza_rampa',
@@ -53,7 +54,7 @@ const segnalazionePrivataSchema = new mongoose.Schema({
     }
 });
 
-segnalazionePrivataSchema.pre('validate', function(next) {
+segnalazionePrivataSchema.pre('validate', function() {
     //forza lo stato IN_VERIFICA se lo score non supera la soglia quando la segnalazione viene inserita
     if (this.isNew || this.scoreAssociato < this.sogliaValidazione) {
         if (this.stato === 'APERTA') {
@@ -74,8 +75,6 @@ segnalazionePrivataSchema.pre('validate', function(next) {
             this.visibile = true; //diventa visibile
         }
     }
-
-    next();
 });
 
 module.exports = Segnalazione.discriminator('privata', segnalazionePrivataSchema);

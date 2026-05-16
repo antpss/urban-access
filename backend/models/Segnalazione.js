@@ -20,7 +20,7 @@ const pointSchema = new mongoose.Schema({
                     && arr[0] >= -180 && arr[0] <= 180   //longitudine
                     && arr[1] >= -90  && arr[1] <= 90;   //latitudine
             },
-            message: 'coordinate non valide: atteso [lng, lat] con lng∈[-180,180], lat∈[-90,90]'
+            message: 'coordinate fuori range consentito.'
         }
     }
 }, { _id: false });
