@@ -1,5 +1,5 @@
 const mongoose = require('mongoose');
-const Segnalazione = require('./Segnalazione'); //si importa il modello base di segnalazione
+const Segnalazione = require('./Segnalazione');
 
 const segnalazionePrivataSchema = new mongoose.Schema({
     //objectId che punta alla struttura (aggregazione)

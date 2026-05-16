@@ -5,7 +5,6 @@ const { verifyToken, requireRole } = require('../middlewares/authJwt');
 const { uploadFotoSegnalazione } = require('../middlewares/photoUploader');
 
 // POST /api/v1/reports/public
-//chain: auth → autorizzazione ruolo → parsing multipart → controller
 router.post('/public',
     verifyToken,
     requireRole('cittadino'),
@@ -13,4 +12,11 @@ router.post('/public',
     reportController.createPublicReport
 );
 
+// POST /api/v1/reports/private
+router.post('/private',
+    verifyToken,
+    requireRole('cittadino'),
+    uploadFotoSegnalazione,
+    reportController.createPrivateReport
+);
 module.exports = router;
