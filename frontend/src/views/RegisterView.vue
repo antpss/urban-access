@@ -124,7 +124,7 @@
           </button>
         </div>
 
-        <div class="text-center" mt-4>
+        <div class="text-center mt-4">
           <p class="text-sm text-slate-600">
             Hai già un account? 
             <a href="#" @click.prevent="goToLogin" class="font-bold text-emerald-600 hover:text-emerald-500 transition-colors">Effettua il login</a>

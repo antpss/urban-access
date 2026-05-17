@@ -145,7 +145,8 @@ const form = ref({
 
 const fetchStrutture = async () => {
   try {
-    const response = await authFetch(`${API_BASE_URL}/strutture`);
+    //da implementare nelle successive us
+    //const response = await authFetch(`${API_BASE_URL}/strutture`);
     if (response.ok) {
       struttureDisponibili.value = await response.json();
     }

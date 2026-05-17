@@ -18,7 +18,7 @@ let map = null;
 let markersLayer = null;
 
 function creaIconaCustom(tipo) {
-  const colore = tipo === 'pubblica' ? '#0ea5e9' : '#0ea5e9';
+  const colore = tipo === 'pubblica' ? '#0ea5e9' : '#f97316';
   const svgPin = `
     <svg width="28" height="42" viewBox="0 0 24 36" xmlns="http://www.w3.org/2000/svg">
       <path d="M12 0C5.37 0 0 5.37 0 12C0 21 12 36 12 36C12 36 24 21 24 12C24 5.37 18.63 0 12 0Z" 

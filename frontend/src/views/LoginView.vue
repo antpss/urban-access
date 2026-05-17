@@ -97,7 +97,7 @@ const handleLogin = async () => {
 
     if (!response.ok) {
       // cattura l'errore generico come "Credenziali non valide" 
-      throw new Error(data.error || data.message || "Errore durante l'accesso.");
+      throw new Error(data.error || "Errore durante l'accesso.");
     }
 
     setSession(data.token, data.user);
