@@ -219,22 +219,19 @@ exports.getReports = async (req, res) => {
 
 
 
-        // eslcudi dalla visibilità segnalazioni private non ancora validate
-        // quindi in fase di "verifica"
-        const ruolo = req.loggedUser.ruolo;
-        if (ruolo === 'cittadino') {
+        //operatore vede tutto (incluse private in verifica) per moderazione
+        //tutti gli altri vedono solo segnalazioni pubbliche o private validate
+        if (ruolo !== 'operatore') {
             if (filter.tipo === 'privata') {
-                //il cittadino chiede esplicitamente solo le private: limita alle visibili.
                 filter.visibile = true;
-            } else if (filter.tipo === 'pubblica') {
-                //se il cittadino chiede esplicitamente solo le pubbliche nessun vincolo aggiuntivo.
-            } else {
-                //nessun filtro tipo: applica la regola standard 
+            } else if (filter.tipo !== 'pubblica') {
+                //nessun filtro tipo: regola standard
                 filter.$or = [
                     { tipo: 'pubblica' },
                     { tipo: 'privata', visibile: true }
                 ];
             }
+            //se filter.tipo === 'pubblica' nessun vincolo aggiuntivo
         }
 
         const segnalazioni = await Segnalazione.find(filter).select('-__v -bloccaModifica -listaValidatori -numAnomalie').lean();

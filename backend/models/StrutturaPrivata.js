@@ -1,6 +1,5 @@
 const mongoose = require('mongoose');
 
-const statoStruttura = ['attiva', 'dismessa'];
 
 const categoriaStruttura = [
     'ristorante',
@@ -78,7 +77,6 @@ const strutturaPrivataSchema = new mongoose.Schema({
 
 strutturaPrivataSchema.index({ geolocalizzazione: '2dsphere' });
 
-strutturaPrivataSchema.index({ proprietario: 1, stato: 1 });
 
 module.exports = mongoose.model('StrutturaPrivata', strutturaPrivataSchema);
 module.exports.categoriaStruttura = categoriaStruttura;

@@ -6,6 +6,7 @@ const path = require('path');
 require('./models/User');
 require('./models/Cittadino');
 require('./models/Proprietario');
+require('./models/Operatore');
 require('./models/Segnalazione');
 require('./models/SegnalazionePubblica');
 require('./models/SegnalazionePrivata');
@@ -69,10 +70,6 @@ app.use('/api', (err, req, res, next) => {
             error: 'Validazione fallita',
             details: [{ field: 'foto', message: err.message }]
         });
-    }
-
-    if (!err) {
-        return res.status(404).json({error: 'Endpoint non trovato'});
     }
 
     return res.status(500).json({ error: 'Errore interno del server' });

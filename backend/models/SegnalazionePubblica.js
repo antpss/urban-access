@@ -4,6 +4,7 @@ const Segnalazione = require('./Segnalazione');
 const segnalazionePubblicaSchema = new mongoose.Schema({
     categoria: {
         type: String,
+        required: [true, 'campo categoria obbligatorio'],
         enum: {
             values: [
                 'marciapiede_rotto',
