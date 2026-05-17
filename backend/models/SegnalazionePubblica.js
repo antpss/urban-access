@@ -13,6 +13,7 @@ const segnalazionePubblicaSchema = new mongoose.Schema({
                 'scalino_non_segnalato',
                 'pavimentazione_dissestata',
                 'semaforo_non_accessibile',
+                'mancanza_rampa',
                 'altro'
             ],
             message: 'Categoria pubblica "{VALUE}" non ammessa'

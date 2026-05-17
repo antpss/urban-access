@@ -23,7 +23,7 @@ exports.createPublicReport = async (req, res) => {
         }
 
         //estrapolazione degli URL relativi delle foto salvate dal middleware (servite da express.static su /uploads)
-        const fotoUrls = (req.files || []).map(f => `/uploads/segnalazioni/${f.filename}`);
+        const fotoUrls = (req.files || []).map(f => `/uploads/reports/${f.filename}`);
 
         const nuovaSegnalazione = new SegnalazionePubblica({
             descrizione,
@@ -99,7 +99,7 @@ exports.createPrivateReport = async (req, res) => {
             });
         }
 
-        const fotoUrls = (req.files || []).map(f => `/uploads/segnalazioni/${f.filename}`);
+        const fotoUrls = (req.files || []).map(f => `/uploads/reports/${f.filename}`);
 
         const nuovaSegnalazione = new SegnalazionePrivata({
             descrizione,

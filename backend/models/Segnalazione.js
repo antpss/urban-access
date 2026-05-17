@@ -42,7 +42,7 @@ const segnalazioneSchema = new mongoose.Schema({
         required: [true, 'campo categoria obbligatorio']
     },
     foto: {
-        //array di path relativi (es. "/uploads/segnalazioni/abc123.jpg")
+        //array di path relativi (es. "/uploads/reports/abc123.jpg")
         type: [String],
         default: [],
         validate: {

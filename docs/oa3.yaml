@@ -78,8 +78,8 @@ paths:
         **Comportamento server-side:**
         - L'email viene normalizzata (lowercase, trim) prima del salvataggio.
         - La password viene salvata in formato hashato (bcrypt, 12 salt rounds).
-        - Lo `scoreAffidabilita` viene inizializzato a `0`.
-        - `profiloDisabilita` ha default `nessuna`.
+        - Lo `scoreAffidabilita` viene inizializzato a `5` (score neutrale per evitare penalizzazione iniziale).
+        - `profiloDisabilita` ha default `[]` ovvero un array vuoto.
         - `storicoPercorsi` e `storicoSegnalazioni` inizializzati come array vuoti.
       operationId: registraCittadino
       requestBody:
@@ -117,7 +117,7 @@ paths:
                   cognome: Rossi
                   ruolo: cittadino
                   profiloDisabilita: []
-                  scoreAffidabilita: 0
+                  scoreAffidabilita: 5
                   createdAt: '2026-05-12T14:30:00.000Z'
         '400':
           description: |
@@ -292,7 +292,7 @@ paths:
                   cognome: Rossi
                   ruolo: cittadino
                   profiloDisabilita: []
-                  scoreAffidabilita: 0
+                  scoreAffidabilita: 5
                   createdAt: '2026-05-12T14:30:00.000Z'
         '400':
           description: |
@@ -386,7 +386,7 @@ paths:
                   cognome: Rossi
                   ruolo: cittadino
                   profiloDisabilita: [sediaARotelle, cecita]
-                  scoreAffidabilita: 0
+                  scoreAffidabilita: 5
                   createdAt: '2026-05-12T14:30:00.000Z'
         '400':
           description: |
@@ -636,7 +636,7 @@ paths:
                     type: Point
                     coordinates: [11.1217, 46.0700]
                   foto:
-                    - /uploads/segnalazioni/1747320000000-foto_ingresso.jpg
+                    - /uploads/reports/1747320000000-foto_ingresso.jpg
                   autore: 65a3f4e7b8d9c1f4a2e5b6c7
                   strutturaAssociata: 65b4f4e7b8d9c1f4a2e5b6a9
                   scoreAssociato: 0
@@ -1105,7 +1105,7 @@ components:
           maxItems: 5
           items:
             type: string
-            example: /uploads/segnalazioni/1747320000000-foto_marciapiede.jpg
+            example: /uploads/reports/1747320000000-foto_marciapiede.jpg
         autore:
           type: string
           pattern: '^[a-f0-9]{24}$'
