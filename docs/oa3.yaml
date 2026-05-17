@@ -770,7 +770,11 @@ paths:
                   segnalazioni:
                     type: array
                     items:
-                      $ref: '#/components/schemas/Segnalazione'
+                      oneOf:
+                        - $ref: '#/components/schemas/SegnalazionePubblica'
+                        - $ref: '#/components/schemas/SegnalazionePrivata'
+                      discriminator:
+                        propertyName: tipo
         '400':
           description: |
             Parametri di query non validi. Possibili cause:
