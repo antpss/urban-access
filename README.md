@@ -171,15 +171,14 @@ JWT_SECRET=<chiave_segreta_robusta>
 ### Installazione e avvio
 
 ```bash
-# Backend
-cd backend
-npm install
-npm start
-
-# Frontend (in un'altra shell)
+# Frontend
 cd frontend
 npm install
-npm run dev
+
+# Backend (in un altra shell)
+cd backend
+npm install
+npm run dev:full
 ```
 
 ## Documentazione API
