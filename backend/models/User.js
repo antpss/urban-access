@@ -1,0 +1,48 @@
+const mongoose = require('mongoose');
+const bcrypt = require('bcrypt');
+
+const userSchema = new mongoose.Schema({
+    // attributi classe utente (superclasse)
+    email: { 
+        type: String, 
+        required: [true, 'campo email obbligatorio'],
+        unique: true,
+        lowercase: true,
+        trim: true,
+        match: [/^\S+@\S+\.\S+$/, 'formato email non valido'] 
+    },
+    password: { 
+        type: String, 
+        required: [true, 'campo password obbligatorio'], 
+        minlength: [8, 'lunghezza minima password 8 caratteri'],
+        maxlength: [128, 'lunghezza massima password 128 caratteri'],
+        select: false
+    },
+    notifiche: [{
+        messaggio: String,
+        letta: { type: Boolean, default: false },
+        data: { type: Date, default: Date.now }
+    }],
+    nome: { 
+        type: String, 
+        required: [true, 'campo nome obbligatorio'] 
+    },
+    cognome: { 
+        type: String, 
+        required: [true, 'campo cognome obbligatorio'] 
+    },
+}, { timestamps: true, discriminatorKey: 'ruolo', collection: 'users' });
+
+
+//hashing della password prima del salvataggio
+userSchema.pre('save', async function() {
+    if (!this.isModified('password')) return;
+    this.password = await bcrypt.hash(this.password, 12);
+});
+
+//compara password inserita con quella salvata
+userSchema.methods.comparePassword = function(insertedPassword) {
+    return bcrypt.compare(insertedPassword, this.password);
+};
+
+module.exports = mongoose.model('User', userSchema);
