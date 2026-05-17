@@ -217,7 +217,7 @@ exports.getReports = async (req, res) => {
             filter.categoria = categoria;
         }
 
-
+        const ruolo = req.loggedUser.ruolo;
 
         //operatore vede tutto (incluse private in verifica) per moderazione
         //tutti gli altri vedono solo segnalazioni pubbliche o private validate
