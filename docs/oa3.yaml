@@ -60,6 +60,12 @@ tags:
       Gestione delle segnalazioni di barriere architettoniche e ostacoli.
       Le segnalazioni si dividono in **pubbliche** (suolo pubblico, immediatamente
       visibili) e **private** (strutture private, soggette a validazione crowdsourcing).
+  - name: Strutture
+    description: | 
+      Gestione delle strutture private (attività commerciali) registrate
+      dai proprietari. Le strutture sono il "target" delle segnalazioni private.
+ 
+
 
 paths:
 
@@ -810,6 +816,113 @@ paths:
                 $ref: '#/components/schemas/Error'
               example:
                 error: Errore interno del server
+  
+  /structures:
+    post:
+      tags:
+        - Strutture
+      summary: Registra una nuova struttura privata
+      description: |
+        Permette a un `proprietario` autenticato di registrare una nuova
+        attività commerciale, rendendola visibile sulla mappa del sistema
+        come potenziale target di segnalazioni private.
+ 
+        ## Geolocalizzazione
+        A differenza degli endpoint `/reports/*` (che usano `multipart/form-data`
+        e quindi coordinate "piatte"), qui il payload è `application/json` e la
+        geolocalizzazione viene inviata come oggetto **GeoJSON `Point`** completo:
+        `{ type: "Point", coordinates: [lng, lat] }`. Indice `2dsphere` lato DB.
+ 
+        **Ordine coordinate**: GeoJSON impone `[longitudine, latitudine]`,
+        contro-intuitivo rispetto a Google Maps.
+ 
+        ## Comportamento server-side
+        - Il `proprietario` viene impostato dal JWT, non dal client (anti-IDOR).
+        - L'`_id` della struttura viene aggiunto a `strutture` del proprietario.
+      operationId: registraStruttura
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateStrutturaRequest'
+            example:
+              nome: Bar Centrale
+              categoria: bar
+              indirizzo: Via Belenzani 14, 38122 Trento TN
+              geolocalizzazione:
+                type: Point
+                coordinates: [11.1217, 46.0667]
+      responses:
+        '201':
+          description: Struttura registrata con successo.
+          headers:
+            Location:
+              schema:
+                type: string
+              description: URL della risorsa appena creata.
+              example: /api/v1/structures/65b4f4e7b8d9c1f4a2e5b6a9
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CreateStrutturaResponse'
+              example:
+                message: Struttura registrata con successo
+                struttura:
+                  _id: 65b4f4e7b8d9c1f4a2e5b6a9
+                  nome: Bar Centrale
+                  categoria: bar
+                  indirizzo: Via Belenzani 14, 38122 Trento TN
+                  geolocalizzazione:
+                    type: Point
+                    coordinates: [11.1217, 46.0667]
+                  proprietario: 65a3f4e7b8d9c1f4a2e5b6c8
+                  createdAt: '2026-05-15T10:00:00.000Z'
+                  updatedAt: '2026-05-15T10:00:00.000Z'
+        '400':
+          description: |
+            Dati di input non validi. Possibili cause:
+            - campo obbligatorio mancante (`nome`, `categoria`, `indirizzo`, `geolocalizzazione`)
+            - `categoria` fuori enum
+            - `nome` troppo breve (< 2) o troppo lungo (> 100 caratteri)
+            - `indirizzo` troppo breve (< 5) o troppo lungo (> 200 caratteri)
+            - `geolocalizzazione` non oggetto GeoJSON valido o coordinate fuori range
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ValidationError'
+              example:
+                error: Validazione fallita
+                details:
+                  - field: geolocalizzazione.coordinates
+                    message: coordinate fuori range consentito
+        '401':
+          description: Token mancante, non valido o scaduto.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                error: Token mancante
+        '403':
+          description: Ruolo non autorizzato. Solo il ruolo `proprietario` può registrare strutture.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                error: 'Accesso negato: ruolo non autorizzato'
+        '500':
+          description: Errore interno del server.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                error: Errore interno del server
+
 
 components:
 
@@ -1338,6 +1451,53 @@ components:
           type: string
           format: date-time
           example: '2026-05-14T10:00:00.000Z'
+
+    CreateStrutturaRequest:
+      type: object
+      description: Payload JSON per la registrazione di una struttura privata.
+      required:
+        - nome
+        - categoria
+        - indirizzo
+        - geolocalizzazione
+      properties:
+        nome:
+          type: string
+          minLength: 2
+          maxLength: 100
+          example: Bar Centrale
+        categoria:
+          type: string
+          enum:
+            - ristorante
+            - bar
+            - negozio
+            - ufficio
+            - hotel
+            - studio_medico
+            - palestra
+            - altro
+          example: bar
+        indirizzo:
+            type: string
+            minLength: 5
+            maxLength: 200
+            example: Via Belenzani 14, 38122 Trento TN
+        geolocalizzazione:
+            $ref: '#/components/schemas/GeoJSONPoint'
+    
+    CreateStrutturaResponse:
+      type: object
+      required:
+        - message
+        - struttura
+      properties:
+        message:
+          type: string
+          example: Struttura registrata con successo
+        struttura:
+          $ref: '#/components/schemas/StrutturaPrivata'
+
 
     Error:
       type: object
