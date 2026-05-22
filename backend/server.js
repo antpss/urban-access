@@ -49,7 +49,7 @@ app.get('/api/v1/health', (req, res) => {
 app.use('/api/v1/auth', authRoutes);
 app.use('/api/v1/users', usersRoutes);
 app.use('/api/v1/reports', reportsRoutes);
-
+app.use('/api/v1/structures', structuresRoutes);
 app.use('/api', (err, req, res, next) => {
     if (err instanceof multer.MulterError) {
         const fieldMap = {
