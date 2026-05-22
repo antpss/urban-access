@@ -220,7 +220,7 @@ const submitSegnalazione = async () => {
   form.value.foto.forEach(f => formData.append('foto', f));
 
   try {
-    const response = await authFetch(`${API_BASE_URL}/reports/public`, { method: 'POST', body: formData });
+    const response = await authFetch(`${API_BASE_URL}/publicReports`, { method: 'POST', body: formData });
     const data = await response.json().catch(() => ({}));
     if (!response.ok) {
       const err = new Error(data.error || data.message || 'Errore sconosciuto durante l\'invio.');
