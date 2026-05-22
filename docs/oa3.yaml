@@ -34,7 +34,7 @@ info:
     Attualmente l'unico campo modificabile è `profiloDisabilita`, riservato ai cittadini, che accetta un array di disabilità.
 
     ## Asset statici (foto segnalazioni)
-    Le foto caricate dai cittadini in `POST /reports/public` e `POST /reports/private` vengono
+    Le foto caricate dai cittadini in `POST /publicReports` e `POST /privateReports` vengono
     salvate su disco e servite come asset statici da `GET /uploads/reports/{filename}`.
     Tali URL **NON** sono parte dell'API REST documentata: sono risorse pubbliche
     raggiungibili direttamente.
@@ -126,22 +126,7 @@ paths:
                   scoreAffidabilita: 5
                   createdAt: '2026-05-12T14:30:00.000Z'
         '400':
-          description: |
-            Dati di input non validi. Possibili cause:
-            - campo obbligatorio mancante (email, password, nome, cognome)
-            - formato email non valido
-            - password troppo corta (< 8 caratteri) o troppo lunga (> 128 caratteri)
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ValidationError'
-              example:
-                error: Validazione fallita
-                details:
-                  - field: email
-                    message: Formato email non valido
-                  - field: password
-                    message: Password minimo 8 caratteri
+          $ref: '#/components/responses/ValidationError'
         '409':
           description: Email già registrata nel sistema.
           content:
@@ -214,21 +199,7 @@ paths:
                   partitaIVA: '12345678901'
                   createdAt: '2026-05-12T14:35:00.000Z'
         '400':
-          description: |
-            Dati di input non validi. Possibili cause:
-            - campo obbligatorio mancante (email, password, nome, cognome, partitaIVA)
-            - formato email non valido
-            - password troppo corta (< 8 caratteri) o troppo lunga (> 128 caratteri)
-            - formato partitaIVA non valido (deve essere esattamente 11 cifre numeriche)
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ValidationError'
-              example:
-                error: Validazione fallita
-                details:
-                  - field: partitaIVA
-                    message: 'partitaIVA non valida'
+          $ref: '#/components/responses/ValidationError'
         '409':
           description: |
             Conflitto su campo univoco. Si verifica quando l'email o la
@@ -301,19 +272,7 @@ paths:
                   scoreAffidabilita: 5
                   createdAt: '2026-05-12T14:30:00.000Z'
         '400':
-          description: |
-            Dati di input non validi. Possibili cause:
-            - campo obbligatorio mancante (email o password)
-            - email o password non sono stringhe
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ValidationError'
-              example:
-                error: Validazione fallita
-                details:
-                  - field: email
-                    message: email è obbligatoria
+          $ref: '#/components/responses/ValidationError'
         '401':
           description: |
             Credenziali non valide.
@@ -395,20 +354,7 @@ paths:
                   scoreAffidabilita: 5
                   createdAt: '2026-05-12T14:30:00.000Z'
         '400':
-          description: |
-            Payload non valido. Possibili cause:
-            - body vuoto o senza alcun campo modificabile
-            - `profiloDisabilita` non è un array
-            - `profiloDisabilita` contiene valori fuori enum
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ValidationError'
-              example:
-                error: Validazione fallita
-                details:
-                  - field: profiloDisabilita
-                    message: 'Valori non ammessi: foo, bar'
+          $ref: '#/components/responses/ValidationError'
         '401':
           description: |
             Autenticazione fallita. Possibili cause:
@@ -456,50 +402,13 @@ paths:
                 $ref: '#/components/schemas/Error'
               example:
                 error: Errore interno del server
-
-  /reports/public:
+  /publicReports:
     post:
-      tags:
-        - Segnalazioni
-      summary: Crea una nuova segnalazione su suolo pubblico
+      summary: Crea una nuova segnalazione pubblica
       description: |
-        Permette a un cittadino autenticato di creare una nuova segnalazione
-        di barriera architettonica o ostacolo su **suolo pubblico**.
-
-        ## Content-Type
-        L'endpoint accetta **esclusivamente** `multipart/form-data` perché
-        consente l'upload di file binari (foto) insieme ai metadati testuali.
-        L'invio come `application/json` produce errore.
-
-        ## Geolocalizzazione
-        Per coerenza con i limiti tecnici di `multipart/form-data` (che non
-        supporta nativamente oggetti annidati), le coordinate sono trasmesse
-        come due campi piatti `longitudine` e `latitudine` (stringhe numeriche).
-        Il server le converte e assembla un oggetto **GeoJSON `Point`**
-        nel formato `{ type: "Point", coordinates: [lng, lat] }` prima del
-        salvataggio, per essere indicizzabile con un indice MongoDB `2dsphere`.
-
-        **Ordine coordinate**: GeoJSON usa `[longitudine, latitudine]`,
-        contro-intuitivo rispetto a Google Maps. Il client deve passare
-        i due campi separati e non un array, per ridurre il rischio di
-        inversione.
-
-        ## Foto
-        Massimo **5 file**, ciascuno **≤ 5MB**, MIME ammessi:
-        `image/jpeg`, `image/png`, `image/webp`. Il server rifiuta file che non
-        rispettano questi vincoli. Campo opzionale: una segnalazione può essere
-        creata anche senza foto.
-
-        ## Stato iniziale
-        Le segnalazioni pubbliche partono in stato `APERTA` e sono
-        **immediatamente visibili** sulla mappa.
-        Vincolo OCL (Deliverable 2, §3.3): una `SegnalazionePubblica`
-        non può mai trovarsi in stato `IN_VERIFICA`.
-
-        ## Comportamento server-side
-        - L'`autore` viene impostato dal JWT, non dal client (mitigazione spoofing).
-        - L'`_id` della segnalazione viene aggiunto a `storicoSegnalazioni` del cittadino.
-      operationId: creaSegnalazionePubblica
+        Crea una segnalazione su suolo pubblico. Solo i cittadini autenticati possono effettuare questa operazione.
+        Il body è `multipart/form-data` per permettere l'upload di foto allegate.
+      tags: [publicReports]
       security:
         - bearerAuth: []
       requestBody:
@@ -507,315 +416,242 @@ paths:
         content:
           multipart/form-data:
             schema:
-              $ref: '#/components/schemas/CreateSegnalazionePubblicaForm'
-            encoding:
-              foto:
-                contentType: image/jpeg, image/png, image/webp
+              type: object
+              required: [descrizione, categoria, longitudine, latitudine]
+              properties:
+                descrizione:
+                  type: string
+                  minLength: 10
+                  maxLength: 1000
+                categoria:
+                  type: string
+                  enum:
+                    - marciapiede_rotto
+                    - ostacolo_temporaneo
+                    - auto_sosta_vietata
+                    - scalino_non_segnalato
+                    - pavimentazione_dissestata
+                    - semaforo_non_accessibile
+                    - mancanza_rampa
+                    - altro
+                longitudine:
+                  type: number
+                  format: double
+                  minimum: -180
+                  maximum: 180
+                latitudine:
+                  type: number
+                  format: double
+                  minimum: -90
+                  maximum: 90
+                foto:
+                  type: array
+                  maxItems: 5
+                  items:
+                    type: string
+                    format: binary
       responses:
         '201':
-          description: Segnalazione creata con successo.
+          description: Segnalazione creata
           headers:
             Location:
+              description: URI della risorsa creata
               schema:
                 type: string
-              description: URL della risorsa appena creata.
-              example: /api/v1/reports/65b4f4e7b8d9c1f4a2e5b6d1
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/CreateSegnalazionePubblicaResponse'
-              example:
-                message: Segnalazione creata con successo
-                segnalazione:
-                  _id: 65b4f4e7b8d9c1f4a2e5b6d1
-                  tipo: pubblica
-                  descrizione: Marciapiede dissestato in prossimità delle strisce pedonali, impraticabile per sedia a rotelle.
-                  categoria: marciapiede_rotto
-                  stato: APERTA
-                  geolocalizzazione:
-                    type: Point
-                    coordinates: [11.1217, 46.0700]
-                  foto:
-                    - /uploads/reports/1715760000000_a1b2c3d4e5f6.jpg
-                  autore: 65a3f4e7b8d9c1f4a2e5b6c7
-                  enteCompetente: null
-                  bloccaModifica: false
-                  createdAt: '2026-05-15T09:20:00.000Z'
-                  updatedAt: '2026-05-15T09:20:00.000Z'
-        '400':
-          description: |
-            Dati di input non validi. Possibili cause:
-            - campo obbligatorio mancante (`descrizione`, `categoria`, `longitudine`, `latitudine`)
-            - `categoria` fuori enum
-            - coordinate fuori range consentito
-            - coordinate non numeriche
-            - `descrizione` troppo breve (< 10 caratteri) o troppo lunga (> 1000)
-            - estensione non accettata (estensioni valide: '.jpeg', '.png', '.webp')
-            - dimensione file >5MB 
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ValidationError'
-              example:
-                error: Validazione fallita
-                details:
-                  - field: categoria
-                    message: 'categoria "marciapide" non ammessa'
-                  - field: latitudine
-                    message: 'coordinate fuori range consentito'
-        '401':
-          description: Token mancante, non valido o scaduto.
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
-              example:
-                error: Token mancante
-        '403':
-          description: |
-            Ruolo non autorizzato. Solo il ruolo `cittadino` può creare
-            segnalazioni private da questo endpoint.
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
-              example:
-                error: 'Accesso negato: ruolo non autorizzato'
-        '500':
-          description: Errore interno del server.
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
-              example:
-                error: Errore interno del server
-
-  /reports/private:
-    post:
-      tags:
-        - Segnalazioni
-      summary: Crea una nuova segnalazione per una struttura privata
-      description: |
-        Permette a un cittadino autenticato di creare una nuova segnalazione
-        associata a una **struttura privata**.
-        
-        A differenza delle segnalazioni pubbliche, queste vengono inizializzate
-        automaticamente nello stato `IN_VERIFICA` e non sono immediatamente visibili
-        sulla mappa (`visibile: false`). Diventeranno `APERTA` (attive) solo
-        al raggiungimento della `sogliaValidazione`.
-
-        Il payload deve essere inviato come `multipart/form-data`.
-      operationId: creaSegnalazionePrivata
-      security:
-        - bearerAuth: []
-      requestBody:
-        required: true
-        content:
-          multipart/form-data:
-            schema:
-              $ref: '#/components/schemas/CreateSegnalazionePrivataForm'
-            encoding:
-              foto:
-                contentType: image/jpeg, image/png, image/webp
-      responses:
-        '201':
-          description: Segnalazione privata creata e messa in verifica.
-          headers:
-            Location:
-              schema:
-                type: string
-              description: URL della risorsa appena creata.
-              example: /api/v1/reports/65b4f4e7b8d9c1f4a2e5b6d2
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/CreateSegnalazionePrivataResponse'
-              example:
-                message: Segnalazione privata creata con successo ed in attesa di validazione
-                segnalazione:
-                  _id: 65b4f4e7b8d9c1f4a2e5b6d2
-                  tipo: privata
-                  descrizione: Assenza di rampa all'ingresso del locale, impossibile entrare con sedia a rotelle.
-                  categoria: mancanza_rampa
-                  stato: IN_VERIFICA
-                  geolocalizzazione:
-                    type: Point
-                    coordinates: [11.1217, 46.0700]
-                  foto:
-                    - /uploads/reports/1747320000000-foto_ingresso.jpg
-                  autore: 65a3f4e7b8d9c1f4a2e5b6c7
-                  strutturaAssociata: 65b4f4e7b8d9c1f4a2e5b6a9
-                  scoreAssociato: 0
-                  sogliaValidazione: 10
-                  listaValidatori: []
-                  numAnomalie: 0
-                  sogliaAllarme: 5
-                  visibile: false
-                  bloccaModifica: false
-                  createdAt: '2026-05-15T09:20:00.000Z'
-                  updatedAt: '2026-05-15T09:20:00.000Z'
-        '400':
-          description: |
-            Dati di input non validi. Possibili cause:
-            - campo obbligatorio mancante (`strutturaAssociata`, `descrizione`, `categoria`, `longitudine`, `latitudine`)
-            - `strutturaAssociata` formato ObjectId non valido
-            - `categoria` fuori enum
-            - coordinate fuori range o non numeriche
-            - `descrizione` troppo breve (< 10 caratteri) o troppo lunga (> 1000)
-            - estensione non accettata (estensioni valide: '.jpeg', '.png', '.webp')
-            - dimensione file >5MB      
-            - id non valido     
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ValidationError'
-              examples:
-                idStrutturaMalformato:
-                  summary: ObjectId della struttura sintatticamente non valido
-                  value:
-                    error: Validazione fallita
-                    details:
-                      - field: strutturaAssociata
-                        message: ID struttura mancante o formato non valido
-                coordinateInvalide:
-                  summary: Coordinate fuori range
-                  value:
-                    error: Validazione fallita
-                    details:
-                      - field: geolocalizzazione.coordinates
-                        message: 'coordinate fuori range consentito'
-        '401':
-          description: Token mancante, non valido o scaduto.
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
-              example:
-                error: Token non valido o scaduto
-        '403':
-          description: |
-            Ruolo non autorizzato. Solo il ruolo `cittadino` può creare
-            segnalazioni pubbliche da questo endpoint. Operatori comunali
-            utilizzano un endpoint dedicato.
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
-              example:
-                error: 'Accesso negato: ruolo non autorizzato'
-        '404':
-          description: |
-            Struttura non trovata. L'`ObjectId` fornito in `strutturaAssociata`
-            è sintatticamente valido ma non corrisponde ad alcuna struttura nel database.
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
-              example:
-                error: Struttura non trovata
-        '500':
-          description: Errore interno del server.
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
-              example:
-                error: Errore interno del server
-                
-  /reports:
-    get:
-      summary: Recupera segnalazioni filtrate per area geografica e stato
-      description: |
-        Restituisce l'elenco delle segnalazioni filtrate via query parameter.
-        Pensato per il caricamento della mappa lato client: il client passa
-        la bounding box del viewport corrente e riceve solo i marker rilevanti.
-        Le segnalazioni private non visibili (sotto soglia di validazione)
-        sono escluse dalla risposta per i cittadini.
-      tags:
-        - Segnalazioni
-      security:
-        - bearerAuth: []
-      parameters:
-        - in: query
-          name: bbox
-          required: false
-          schema:
-            type: string
-            pattern: '^-?\d+(\.\d+)?,-?\d+(\.\d+)?,-?\d+(\.\d+)?,-?\d+(\.\d+)?$'
-          description: |
-            Bounding box nel formato "minLng,minLat,maxLng,maxLat".
-            Esempio: "11.10,46.05,11.15,46.10"
-          example: "11.10,46.05,11.15,46.10"
-        - in: query
-          name: stato
-          required: false
-          schema:
-            type: string
-            enum: [APERTA, IN_VERIFICA, PRESA_IN_CARICO, RISOLTA, ARCHIVIATA]
-        - in: query
-          name: tipo
-          required: false
-          schema:
-            type: string
-            enum: [pubblica, privata]
-        - in: query
-          name: categoria
-          required: false
-          schema:
-            type: string
-      responses:
-        '200':
-          description: Lista segnalazioni
+                example: /api/v1/publicReports/65b1a2c3d4e5f6a7b8c9d0e1
           content:
             application/json:
               schema:
                 type: object
                 properties:
-                  count:
-                    type: integer
+                  message: { type: string }
+                  segnalazione:
+                    $ref: '#/components/schemas/SegnalazionePubblica'
+        '400':
+          $ref: '#/components/responses/ValidationError'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          description: Ruolo non autorizzato (solo cittadini)
+
+    get:
+      summary: Recupera segnalazioni pubbliche con filtri opzionali
+      description: |
+        Restituisce l'elenco delle segnalazioni pubbliche. Tutti i parametri di query sono opzionali e combinabili.
+      tags: [publicReports]
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: bbox
+          in: query
+          required: false
+          description: 'Bounding box geografica, formato: minLng,minLat,maxLng,maxLat'
+          schema:
+            type: string
+          example: "11.10,46.05,11.15,46.10"
+        - name: stato
+          in: query
+          required: false
+          schema:
+            type: string
+            enum: [APERTA, IN_VERIFICA, PRESA_IN_CARICO, RISOLTA, ARCHIVIATA]
+        - name: categoria
+          in: query
+          required: false
+          schema:
+            type: string
+            enum:
+              - marciapiede_rotto
+              - ostacolo_temporaneo
+              - auto_sosta_vietata
+              - scalino_non_segnalato
+              - pavimentazione_dissestata
+              - semaforo_non_accessibile
+              - mancanza_rampa
+              - altro
+      responses:
+        '200':
+          description: Lista segnalazioni pubbliche filtrate
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  count: { type: integer }
                   segnalazioni:
                     type: array
                     items:
-                      oneOf:
-                        - $ref: '#/components/schemas/SegnalazionePubblica'
-                        - $ref: '#/components/schemas/SegnalazionePrivata'
-                      discriminator:
-                        propertyName: tipo
+                      $ref: '#/components/schemas/SegnalazionePubblica'
         '400':
-          description: |
-            Parametri di query non validi. Possibili cause:
-            - formato `bbox` malformato (non rispetta la RegEx)
-            - coordinate fuori range geografico
-            - `stato` o `tipo` con valori non inclusi negli enum consentiti
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ValidationError'
-              example:
-                error: Validazione fallita
-                details:
-                  - field: bbox
-                    message: "Formato bounding box non valido. Atteso minLng,minLat,maxLng,maxLat"
+          $ref: '#/components/responses/ValidationError'
         '401':
-          description: |
-            Autenticazione fallita. Il client non ha fornito credenziali valide. Possibili cause:
-            - Token JWT mancante nell'header `Authorization`
-            - Token malformato, alterato o non valido
-            - Token scaduto
+          $ref: '#/components/responses/Unauthorized'
+
+  /privateReports:
+    post:
+      summary: Crea una nuova segnalazione privata su una struttura
+      description: |
+        Crea una segnalazione relativa a una struttura privata. Solo i cittadini autenticati possono effettuare questa operazione.
+        La segnalazione nasce in stato IN_VERIFICA e diventa visibile solo quando lo score di validazione comunitario raggiunge la soglia.
+      tags: [privateReports]
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required: [descrizione, categoria, longitudine, latitudine, strutturaAssociata]
+              properties:
+                descrizione:
+                  type: string
+                  minLength: 10
+                  maxLength: 1000
+                categoria:
+                  type: string
+                  enum:
+                    - mancanza_rampa
+                    - bagno_non_accessibile
+                    - ascensore_guasto
+                    - spazi_interni_stretti
+                    - altro
+                longitudine:
+                  type: number
+                  format: double
+                  minimum: -180
+                  maximum: 180
+                latitudine:
+                  type: number
+                  format: double
+                  minimum: -90
+                  maximum: 90
+                strutturaAssociata:
+                  type: string
+                  pattern: '^[a-fA-F0-9]{24}$'
+                  description: ObjectId MongoDB della struttura privata
+                foto:
+                  type: array
+                  maxItems: 5
+                  items:
+                    type: string
+                    format: binary
+      responses:
+        '201':
+          description: Segnalazione creata e in attesa di validazione
+          headers:
+            Location:
+              description: URI della risorsa creata
+              schema:
+                type: string
+                example: /api/v1/privateReports/65b1a2c3d4e5f6a7b8c9d0e1
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Error'
-              example:
-                error: Token non valido o scaduto
-        '500':
-          description: Errore interno del server.
+                type: object
+                properties:
+                  message: { type: string }
+                  segnalazione:
+                    $ref: '#/components/schemas/SegnalazionePrivata'
+        '400':
+          $ref: '#/components/responses/ValidationError'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          description: Ruolo non autorizzato (solo cittadini)
+        '404':
+          description: Struttura associata non trovata
+
+    get:
+      summary: Recupera segnalazioni private con filtri opzionali
+      description: |
+        Restituisce l'elenco delle segnalazioni private. Per i ruoli non-operatore vengono restituite solo le segnalazioni già validate dalla community (visibile=true).
+        Gli operatori vedono anche quelle in stato IN_VERIFICA per finalità di moderazione.
+      tags: [privateReports]
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: bbox
+          in: query
+          required: false
+          description: 'Bounding box geografica, formato: minLng,minLat,maxLng,maxLat'
+          schema:
+            type: string
+          example: "11.10,46.05,11.15,46.10"
+        - name: stato
+          in: query
+          required: false
+          schema:
+            type: string
+            enum: [APERTA, IN_VERIFICA, PRESA_IN_CARICO, RISOLTA, ARCHIVIATA]
+        - name: categoria
+          in: query
+          required: false
+          schema:
+            type: string
+            enum:
+              - mancanza_rampa
+              - bagno_non_accessibile
+              - ascensore_guasto
+              - spazi_interni_stretti
+              - altro
+      responses:
+        '200':
+          description: Lista segnalazioni private filtrate
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Error'
-              example:
-                error: Errore interno del server
+                type: object
+                properties:
+                  count: { type: integer }
+                  segnalazioni:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/SegnalazionePrivata'
+        '400':
+          $ref: '#/components/responses/ValidationError'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
   
   /structures:
     post:
@@ -882,22 +718,7 @@ paths:
                   createdAt: '2026-05-15T10:00:00.000Z'
                   updatedAt: '2026-05-15T10:00:00.000Z'
         '400':
-          description: |
-            Dati di input non validi. Possibili cause:
-            - campo obbligatorio mancante (`nome`, `categoria`, `indirizzo`, `geolocalizzazione`)
-            - `categoria` fuori enum
-            - `nome` troppo breve (< 2) o troppo lungo (> 100 caratteri)
-            - `indirizzo` troppo breve (< 5) o troppo lungo (> 200 caratteri)
-            - `geolocalizzazione` non oggetto GeoJSON valido o coordinate fuori range
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ValidationError'
-              example:
-                error: Validazione fallita
-                details:
-                  - field: geolocalizzazione.coordinates
-                    message: coordinate fuori range consentito
+          $ref: '#/components/responses/ValidationError'
         '401':
           description: Token mancante, non valido o scaduto.
           content:
@@ -1534,3 +1355,59 @@ components:
                 type: string
                 description: Messaggio di errore specifico del campo.
                 example: 'categoria "marciapide" non ammessa'
+  
+  responses:
+    ValidationError:
+      description: |
+        Dati di input non validi. Il body contiene la lista dei campi che hanno fallito la validazione.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ValidationError'
+          example:
+            error: Validazione fallita
+            details:
+              - field: email
+                message: Formato email non valido
+
+    Unauthorized:
+      description: |
+        Autenticazione mancante o non valida. Possibili cause:
+        - header `Authorization: Bearer <token>` (o `x-access-token`) assente
+        - token JWT malformato
+        - token JWT scaduto
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          examples:
+            tokenMancante:
+              value:
+                error: Token mancante
+            tokenScaduto:
+              value:
+                error: Token scaduto
+            tokenNonValido:
+              value:
+                error: Token non valido
+
+    Forbidden:
+      description: |
+        Autenticazione valida ma il ruolo dell'utente non è autorizzato per l'operazione.
+        Esempi: un proprietario tenta di creare una segnalazione (operazione riservata ai cittadini),
+        un cittadino tenta di moderare segnalazioni in verifica (operazione riservata agli operatori).
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          example:
+            error: 'Accesso negato: ruolo non autorizzato'
+
+    InternalServerError:
+      description: Errore interno del server.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          example:
+            error: Errore interno del server
