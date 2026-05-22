@@ -18,6 +18,7 @@ const multer = require('multer');
 const authRoutes = require('./routes/auth');
 const usersRoutes = require('./routes/users');
 const reportsRoutes = require('./routes/reports');
+const structuresRoutes = require('./routes/structures');
 
 const PORT = process.env.PORT || 3000;
 const MONGO_URI = process.env.MONGO_URI;
