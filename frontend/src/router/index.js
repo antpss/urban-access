@@ -3,6 +3,7 @@ import RegisterView from '../views/RegisterView.vue';
 import LoginView from '../views/LoginView.vue';
 import SelectDisability from '../views/SelectDisability.vue';
 import Home from '../views/Home.vue';
+import HomeProprietario from '../views/HomeProprietario.vue';
 import { isAuthenticated, getUser } from '../services/auth';
 
 const routes = [
@@ -29,7 +30,13 @@ const routes = [
         path: '/home',
         name: 'Home',
         component: Home,
-        meta: {requiresAuth: true}
+        meta: { requiresAuth: true, role: 'cittadino' }
+    },
+    {
+        path: '/home/proprietario',
+        name: 'HomeProprietario',
+        component: HomeProprietario,
+        meta: { requiresAuth: true, role: 'proprietario' }
     }
 ];
 
@@ -37,6 +44,11 @@ const router = createRouter({
     history: createWebHistory(),
     routes
 });
+
+export const homeRouteByRole = {
+    cittadino: 'Home',
+    proprietario: 'HomeProprietario'
+};
 
 router.beforeEach((to, from, next) => {
     const authed = isAuthenticated();
@@ -49,13 +61,20 @@ router.beforeEach((to, from, next) => {
 
     // verifica tentativi di accesso se autenticato a pagine per ospiti
     if (to.meta.requireGuest && authed) {
-        return next({ name: 'Home' });
+        const targetName = homeRouteByRole[user?.ruolo] || 'Home';
+        return next({ name: targetName });
     }
 
     
     if (to.meta.role && user?.ruolo !== to.meta.role) {
-        return next({ name: 'Home' });
+        const targetName = homeRouteByRole[user?.ruolo];
+        if (targetName && targetName !== to.name) {
+            return next({ name: targetName });
+        }
+        //fallback se ruolo non mappato: torna al login
+        return next({ name: 'Login' });
     }
+
     return next();
 });
 
