@@ -19,6 +19,7 @@ const authRoutes = require('./routes/auth');
 const usersRoutes = require('./routes/users');
 const publicReportsRoutes = require('./routes/publicReports');
 const privateReportsRoutes = require('./routes/privateReports');
+const structuresRoutes = require('./routes/struttura');
 
 const PORT = process.env.PORT || 3000;
 const MONGO_URI = process.env.MONGO_URI;
@@ -50,6 +51,7 @@ app.use('/api/v1/auth', authRoutes);
 app.use('/api/v1/users', usersRoutes);
 app.use('/api/v1/publicReports', publicReportsRoutes);
 app.use('/api/v1/privateReports', privateReportsRoutes);
+app.use('/api/v1/structures', structuresRoutes);
 
 app.use('/api', (err, req, res, next) => {
     if (err instanceof multer.MulterError) {
