@@ -6,8 +6,21 @@
   "scripts": {
     "start": "node server.js",
     "dev": "nodemon server.js",
-    "dev:full": "concurrently \"nodemon server.js\" \"npm run dev --prefix ../frontend\""
+    "dev:full": "concurrently \"nodemon server.js\" \"npm run dev --prefix ../frontend\"",
+    "test": "jest --setupFiles dotenv/config --runInBand",
+    "test:coverage": "jest --coverage --setupFiles dotenv/config --runInBand"
   },
+
+  "jest": {
+    "verbose": true,
+    "testEnvironment": "node",
+    "collectCoverageFrom": [
+        "controllers/**/*.js",
+        "middlewares/**/*.js",
+        "routes/**/*.js"
+    ]
+  },
+
   "keywords": [],
   "author": "",
   "license": "ISC",
@@ -23,6 +36,8 @@
   },
   "devDependencies": {
     "concurrently": "^9.2.1",
-    "nodemon": "^3.1.14"
+    "jest": "^30.4.2",
+    "nodemon": "^3.1.14",
+    "supertest": "^7.2.2"
   }
 }

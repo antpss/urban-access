@@ -44,20 +44,35 @@ async function caricaSegnalazioni() {
     const northEast = bounds.getNorthEast();
     const bbox = `${southWest.lng},${southWest.lat},${northEast.lng},${northEast.lat}`;
 
-    //chiamata
-    const response = await authFetch(`/api/v1/reports?bbox=${bbox}&stato=APERTA`);
+    const params = new URLSearchParams({bbox, stato: 'APERTA'});
 
-    if (!response.ok) {
-      console.error('Errore API:', response.status, await response.text());
+    // chiamata parallela per i due endpoint
+    const [resPublic, resPrivate] = await Promise.all([
+      authFetch(`${API_BASE_URL}/publicReports?${params}`),
+      authFetch(`${API_BASE_URL}/privateReports?${params}`)
+    ]);
+
+    if (!resPublic.ok) {
+      console.error('Errore API publicReports:', resPublic.status, await resPublic.text());
+      return;
+    }
+    if (!resPrivate.ok) {
+      console.error('Errore API privateReports:', resPrivate.status, await resPrivate.text());
       return;
     }
     
-    const data = await response.json();
+    const [dataPublic, dataPrivate] = await Promise.all([
+      resPublic.json(),
+      resPrivate.json()
+    ]); 
+
+    // fusione dei risultati delle due queries in un unico array
+    const segnalazioni = [...dataPublic.segnalazioni, ...dataPrivate.segnalazioni];
+
+    markersLayer.clearLayers();
     
     //si cicla sui dati ricevuti da mongodb
-    data.segnalazioni.forEach(seg => {
-      //mongodb [lng, lat] 
-      //leaflet [lat, lng]!!!!!!
+    segnalazioni.forEach(seg => {
       const [lng, lat] = seg.geolocalizzazione.coordinates;
       
       //creiamo il marker e attacchiamo il popup con la descrizione della barriera
