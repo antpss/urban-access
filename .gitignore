@@ -1,5 +1,7 @@
 node_modules
 backend/.env
+backend/.env.test
 .vscode
 .DS_Store
 backend/uploads/reports
+coverage/
