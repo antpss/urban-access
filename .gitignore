@@ -4,4 +4,4 @@ backend/.env.test
 .vscode
 .DS_Store
 backend/uploads/reports
-coverage/
+backend/coverage/
