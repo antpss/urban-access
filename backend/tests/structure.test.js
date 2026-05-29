@@ -139,3 +139,120 @@ describe('POST /api/v1/structures - US7 Registrazione Struttura', () => {
         expect(saveSpy).not.toHaveBeenCalled();
     });
 });
+
+
+
+describe('GET /api/v1/structures - US7 Lista Strutture con filtri', () => {
+ 
+    
+    const mockFindChain = (returnValue) => {
+        const leanFn = jest.fn().mockResolvedValue(returnValue);
+        const sortFn = jest.fn().mockReturnValue({ lean: leanFn });
+        const selectFn = jest.fn().mockReturnValue({ sort: sortFn });
+        return jest.spyOn(StrutturaPrivata, 'find').mockReturnValue({
+            select: selectFn,
+            //esposti per ispezione nei test
+            _selectFn: selectFn,
+            _sortFn: sortFn,
+            _leanFn: leanFn
+        });
+    };
+ 
+    let findSpy;
+ 
+    afterEach(() => {
+        if (findSpy) findSpy.mockRestore();
+    });
+ 
+    test('200: proprietario richiede le sue strutture → lista filtrata + campo proprietario incluso', async () => {
+        const struttureFake = [
+            {
+                _id: FAKE_STRUCTURE_ID,
+                nome: 'Bar Centrale',
+                categoria: 'bar',
+                indirizzo: 'Via Belenzani 14, Trento',
+                geolocalizzazione: { type: 'Point', coordinates: [11.1217, 46.0667] },
+                proprietario: OWNER_ID,
+                createdAt: '2026-05-15T10:00:00.000Z'
+            }
+        ];
+        findSpy = mockFindChain(struttureFake);
+ 
+        const res = await request(app)
+            .get(`/api/v1/structures?proprietario=${OWNER_ID}`)
+            .set('Authorization', `Bearer ${tokenProprietario}`);
+ 
+        expect(res.status).toBe(200);
+        expect(res.body.count).toBe(1);
+        expect(res.body.strutture).toHaveLength(1);
+        expect(res.body.strutture[0].proprietario).toBe(OWNER_ID);
+ 
+        expect(findSpy).toHaveBeenCalledWith({ proprietario: OWNER_ID });
+
+        const projectionArg = findSpy.mock.results[0].value._selectFn.mock.calls[0][0];
+        expect(projectionArg).toBe('-__v');
+    });
+ 
+    test('200: cittadino fa GET senza filtro proprietario → lista globale SENZA campo proprietario', async () => {
+        const struttureFake = [
+            {
+                _id: FAKE_STRUCTURE_ID,
+                nome: 'Bar Centrale',
+                categoria: 'bar',
+                indirizzo: 'Via Belenzani 14, Trento',
+                geolocalizzazione: { type: 'Point', coordinates: [11.1217, 46.0667] },
+                createdAt: '2026-05-15T10:00:00.000Z'
+
+            }
+        ];
+        findSpy = mockFindChain(struttureFake);
+ 
+        const res = await request(app)
+            .get('/api/v1/structures')
+            .set('Authorization', `Bearer ${tokenCittadino}`);
+ 
+        expect(res.status).toBe(200);
+        const projectionArg = findSpy.mock.results[0].value._selectFn.mock.calls[0][0];
+        expect(projectionArg).toBe('-__v -proprietario');
+    });
+ 
+    test('400: bbox mal formato → save non chiamato, errore dettagliato', async () => {
+        findSpy = mockFindChain([]);
+ 
+        const res = await request(app)
+            .get('/api/v1/structures?bbox=11.1,46.0')  //solo 2 valori invece di 4
+            .set('Authorization', `Bearer ${tokenProprietario}`);
+ 
+        expect(res.status).toBe(400);
+        expect(res.body.error).toBe('Validazione fallita');
+        expect(res.body.details[0]).toMatchObject({
+            field: 'bbox',
+            message: expect.stringContaining('formato atteso')
+        });
+        //invariante: la query non parte se i filtri sono malformati
+        expect(findSpy).not.toHaveBeenCalled();
+    });
+ 
+    test('401: token mancante → 401, find mai chiamato', async () => {
+        findSpy = mockFindChain([]);
+ 
+        const res = await request(app).get('/api/v1/structures');
+ 
+        expect(res.status).toBe(401);
+        expect(res.body.error).toBe('Token mancante');
+        expect(findSpy).not.toHaveBeenCalled();
+    });
+ 
+    test('403: tentativo IDOR - proprietario filtra per id altrui → bloccato', async () => {
+        findSpy = mockFindChain([]);
+ 
+        const res = await request(app)
+            .get(`/api/v1/structures?proprietario=${OTHER_OWNER_ID}`)
+            .set('Authorization', `Bearer ${tokenProprietario}`);
+ 
+        expect(res.status).toBe(403);
+        expect(res.body.error).toContain('Accesso negato');
+        //invariante critica: nessuna query al DB per id altrui
+        expect(findSpy).not.toHaveBeenCalled();
+    });
+});
