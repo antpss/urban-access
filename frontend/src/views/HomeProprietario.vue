@@ -73,9 +73,9 @@
 </template>
 
 <script setup>
-import { ref } from 'vue';
+import { ref, onMounted } from 'vue'; 
 import { useRouter } from 'vue-router';
-import { getUser, clearSession } from '../services/auth';
+import { getUser, clearSession, authFetch } from '../services/auth'; 
 import FormStruttura from './FormStruttura.vue';
 
 const router = useRouter();
@@ -84,9 +84,39 @@ const user = getUser();
 const isFormOpen = ref(false);
 const showSuccessBanner = ref(false);
 
-//array di strutture: per ora popolato solo dalle nuove registrazioni nella sessione corrente.
-//endpoint GET /structures servirà a caricare lo storico al mount.
+//stato della lista strutture
 const strutture = ref([]);
+const isLoading = ref(true);     //true al primo mount, finché la fetch non ritorna
+const loadError = ref('');       //messaggio errore se la fetch fallisce
+
+
+const fetchStrutture = async () =>{
+    isLoading.value = true;
+    loadError.value = '';
+
+    try{
+        if (!user?._id) {
+            throw new Error('Sessione utente non valida');
+        }
+        const res = await authFetch(`/api/v1/structures?proprietario=${user._id}`);
+        if (!res.ok) {
+            //prova a estrarre il messaggio di errore dal body
+            const data = await res.json().catch(() => ({}));
+            throw new Error(data.error || `Errore ${res.status}`);
+        }
+        const data = await res.json();
+        strutture.value = data.strutture || [];
+
+    } catch (e){
+
+        loadError.value = e.message === 'Failed to fetch'
+            ? 'Server non raggiungibile.'
+            : e.message;
+    } finally{
+        isLoading.value = false;
+    }
+};
+
 
 const onStrutturaSubmitted = (nuovaStruttura) => {
   if (nuovaStruttura) strutture.value.unshift(nuovaStruttura);
@@ -94,10 +124,13 @@ const onStrutturaSubmitted = (nuovaStruttura) => {
   setTimeout(() => { showSuccessBanner.value = false; }, 4000);
 };
 
+
 const handleLogout = () => {
   clearSession();
   router.push('/login');
 };
+
+onMounted(fetchStrutture);
 </script>
 
 <style scoped>

@@ -10,5 +10,11 @@ router.post('/',
     requireRole('proprietario'),
     structureController.createStructure
 );
- 
+
+//GET /api/v1/structures
+router.get('/',
+    verifyToken,
+    structureController.getStructures
+);
+
 module.exports = router;
