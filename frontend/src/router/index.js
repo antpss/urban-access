@@ -4,6 +4,7 @@ import LoginView from '../views/LoginView.vue';
 import SelectDisability from '../views/SelectDisability.vue';
 import Home from '../views/Home.vue';
 import HomeProprietario from '../views/HomeProprietario.vue';
+import Profilo from '../views/Profilo.vue';
 import { isAuthenticated, getUser } from '../services/auth';
 
 const routes = [
@@ -37,6 +38,13 @@ const routes = [
         name: 'HomeProprietario',
         component: HomeProprietario,
         meta: { requiresAuth: true, role: 'proprietario' }
+    },
+    {
+        //profilo personale: comune a tutti i ruoli, nessun vincolo di ruolo
+        path: '/profilo',
+        name: 'Profilo',
+        component: Profilo,
+        meta: { requiresAuth: true }
     }
 ];
 
