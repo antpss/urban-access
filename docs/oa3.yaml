@@ -744,6 +744,115 @@ paths:
               example:
                 error: Errore interno del server
 
+    get:
+      tags:
+        - Strutture
+      summary: Lista delle strutture con filtri opzionali
+      description: |
+        Restituisce l'elenco delle strutture, opzionalmente filtrate per
+        bounding box geospaziale, categoria e/o proprietario.
+ 
+        ## Vincoli di autorizzazione su `proprietario`
+        Il filtro `proprietario=<id>` è ammesso **solo se l'id coincide con
+        quello del JWT** (anti-IDOR/anti-enumeration). Tentativi di filtrare
+        per id altrui restituiscono `403`.
+ 
+        ## Visibilità del campo `proprietario` nella risposta
+        Il campo `proprietario` viene incluso solo se il chiamante sta
+        richiedendo le proprie strutture (`?proprietario=<suo_id>`).
+        Altrimenti viene omesso per privacy.
+      operationId: listaStrutture
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: query
+          name: bbox
+          schema:
+            type: string
+          required: false
+          description: |
+            Bounding box geospaziale nel formato `minLng,minLat,maxLng,maxLat`.
+            Restituisce solo le strutture la cui geolocalizzazione cade nel rettangolo.
+            Sfrutta l'indice 2dsphere.
+          example: "11.10,46.05,11.15,46.08"
+        - in: query
+          name: categoria
+          schema:
+            type: string
+            enum:
+              - ristorante
+              - bar
+              - negozio
+              - ufficio
+              - hotel
+              - studio_medico
+              - palestra
+              - altro
+          required: false
+          description: Filtro per categoria. Valori fuori enum → `400`.
+        - in: query
+          name: proprietario
+          schema:
+            type: string
+            pattern: '^[a-fA-F0-9]{24}$'
+          required: false
+          description: |
+            ObjectId del proprietario. Ammesso solo se coincide con l'id del JWT,
+            altrimenti `403`. Quando presente e valido, i risultati includono il
+            campo `proprietario` nella risposta.
+      responses:
+        '200':
+          description: Lista delle strutture (può essere vuota).
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StruttureListResponse'
+              example:
+                count: 1
+                strutture:
+                  - _id: 65b4f4e7b8d9c1f4a2e5b6a9
+                    nome: Bar Centrale
+                    categoria: bar
+                    indirizzo: Via Belenzani 14, 38122 Trento TN
+                    geolocalizzazione:
+                      type: Point
+                      coordinates: [11.1217, 46.0667]
+                    proprietario: 65a3f4e7b8d9c1f4a2e5b6c8
+                    createdAt: '2026-05-15T10:00:00.000Z'
+                    updatedAt: '2026-05-15T10:00:00.000Z'
+        '400':
+          description: |
+            Filtri non validi. Possibili cause:
+            - `bbox` mal formato o coordinate fuori range
+            - `categoria` fuori enum
+            - `proprietario` non è un ObjectId valido (24 hex)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ValidationError'
+              example:
+                error: Validazione fallita
+                details:
+                  - field: bbox
+                    message: 'formato atteso: minLng,minLat,maxLng,maxLat'
+        '401':
+          description: Token mancante, non valido o scaduto.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '403':
+          description: Tentativo di filtrare per un `proprietario` diverso dal proprio.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                error: Accesso negato. Puoi filtrare solo per il tuo id.
+        '500':
+          description: Errore interno del server.
+
+
 
 components:
 
@@ -1318,6 +1427,21 @@ components:
           example: Struttura registrata con successo
         struttura:
           $ref: '#/components/schemas/StrutturaPrivata'
+
+    StruttureListResponse:
+      type: object
+      required:
+        - count
+        - strutture
+      properties:
+        count:
+          type: integer
+          description: Numero di strutture nell'array (può essere 0).
+        strutture:
+          type: array
+          items:
+            $ref: '#/components/schemas/StrutturaPrivata'
+
 
 
     Error:
