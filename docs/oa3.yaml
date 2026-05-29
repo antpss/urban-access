@@ -291,6 +291,70 @@ paths:
                 error: Errore interno del server
 
   /users/me:
+    get:
+      tags:
+        - Users
+      summary: Recupera il profilo dell'utente autenticato
+      description: |
+        Restituisce la rappresentazione completa del profilo dell'utente identificato dal JWT.
+
+        **Comportamento server-side:**
+        - L'`userId` viene estratto dal JWT.
+        - La query viene eseguita sul modello base `User`: il documento ritornato include
+          automaticamente i campi del subschema corrispondente al ruolo (`cittadino`,
+          `proprietario`, `operatore`) grazie al meccanismo dei discriminator di Mongoose.
+        - I campi sensibili (`password`) o interni (`__v`, `notifiche`) sono esclusi dalla risposta.
+
+        **Verifica sul token:**
+        - Token mancante, malformato o scaduto produce Errore 401.
+        - Token valido ma utente inesistente (es. eliminato) produce Errore 404.
+      operationId: getProfiloUtente
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Profilo recuperato con successo.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GetProfileResponse'
+              examples:
+                cittadino:
+                  summary: Profilo di un cittadino
+                  value:
+                    user:
+                      _id: 65a3f4e7b8d9c1f4a2e5b6c7
+                      email: mario.rossi@example.com
+                      nome: Mario
+                      cognome: Rossi
+                      ruolo: cittadino
+                      profiloDisabilita: [sediaARotelle]
+                      scoreAffidabilita: 5
+                      createdAt: '2026-05-12T14:30:00.000Z'
+                proprietario:
+                  summary: Profilo di un proprietario
+                  value:
+                    user:
+                      _id: 65a3f4e7b8d9c1f4a2e5b6c8
+                      email: proprietario@example.com
+                      nome: Luigi
+                      cognome: Bianchi
+                      ruolo: proprietario
+                      partitaIVA: '12345678901'
+                      createdAt: '2026-05-12T14:35:00.000Z'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          description: Utente non trovato. Il token è valido ma l'utente associato è stato eliminato o non esiste più.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                error: Utente non trovato
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
     patch:
       tags:
         - Users
@@ -403,7 +467,8 @@ paths:
       description: |
         Crea una segnalazione su suolo pubblico. Solo i cittadini autenticati possono effettuare questa operazione.
         Il body è `multipart/form-data` per permettere l'upload di foto allegate.
-      tags: [publicReports]
+      tags:
+        - Segnalazioni
       security:
         - bearerAuth: []
       requestBody:
@@ -473,7 +538,8 @@ paths:
       summary: Recupera segnalazioni pubbliche con filtri opzionali
       description: |
         Restituisce l'elenco delle segnalazioni pubbliche. Tutti i parametri di query sono opzionali e combinabili.
-      tags: [publicReports]
+      tags:
+        - Segnalazioni
       security:
         - bearerAuth: []
       parameters:
@@ -528,7 +594,8 @@ paths:
       description: |
         Crea una segnalazione relativa a una struttura privata. Solo i cittadini autenticati possono effettuare questa operazione.
         La segnalazione nasce in stato IN_VERIFICA e diventa visibile solo quando lo score di validazione comunitario raggiunge la soglia.
-      tags: [privateReports]
+      tags:
+        - Segnalazioni
       security:
         - bearerAuth: []
       requestBody:
@@ -602,7 +669,8 @@ paths:
       description: |
         Restituisce l'elenco delle segnalazioni private. Per i ruoli non-operatore vengono restituite solo le segnalazioni già validate dalla community (visibile=true).
         Gli operatori vedono anche quelle in stato IN_VERIFICA per finalità di moderazione.
-      tags: [privateReports]
+      tags:
+        - Segnalazioni
       security:
         - bearerAuth: []
       parameters:
@@ -937,6 +1005,17 @@ components:
             type: string
             enum: [sediaARotelle, cecita, sordita, ausilioDeambulazione]
           example: [sediaARotelle]
+
+    GetProfileResponse:
+      type: object
+      required:
+        - user
+      description: |
+        Risposta di `GET /users/me`. Contiene la rappresentazione pubblica
+        dell'utente autenticato. I campi presenti dipendono dal ruolo.
+      properties:
+        user:
+          $ref: '#/components/schemas/UserPublic'
 
     UpdateProfileResponse:
       type: object
