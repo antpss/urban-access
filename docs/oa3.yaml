@@ -39,6 +39,36 @@ info:
     Tali URL **NON** sono parte dell'API REST documentata: sono risorse pubbliche
     raggiungibili direttamente.
 
+    ## Routing e geocoding
+    Il sistema offre due funzionalità di supporto alla navigazione accessibile,
+    raggruppate sotto il tag `Routing`:
+
+    - `GET /geocode` — traduce un indirizzo testuale in coordinate geografiche,
+      appoggiandosi al servizio **Nominatim** di OpenStreetMap. Restituisce una
+      lista di candidati, lasciando al client la disambiguazione.
+    - `GET /routes` — calcola un percorso pedonale verso una destinazione tramite
+      il motore di routing **Valhalla** (self-hosted, costing `pedestrian`),
+      restituendo la geometria come GeoJSON LineString.
+
+    Entrambi gli endpoint sono di **sola lettura, idempotenti e stateless**:
+    nessun percorso o ricerca viene persistito. Un percorso è infatti un dato
+    derivato e deperibile, funzione dello stato corrente della rete di
+    accessibilità; viene quindi sempre ricalcolato e mai salvato.
+
+    Nella fase attuale l'origine del percorso è **hardcoded al centro di Trento**
+    e non rilevata dalla geolocalizzazione reale dell'utente.
+
+    ### Semantica degli errori di routing
+    Il sistema distingue due situazioni che un'integrazione ingenua confonderebbe:
+    - **`422 Unprocessable Entity`** — la destinazione è valida ma non raggiungibile
+      a piedi (punto isolato dalla rete, fuori area, oltre la distanza massima
+      pedonale). Non è un guasto: semplicemente nessun percorso esiste.
+    - **`502 Bad Gateway`** — il servizio esterno (Valhalla o Nominatim) è
+      irraggiungibile o malfunzionante. Guasto reale del servizio a monte.
+
+    Questa distinzione consente al client di reagire correttamente: suggerire
+    un'altra destinazione nel primo caso, riprovare più tardi nel secondo.
+
   version: 1.0.0
   contact:
     name: Gruppo 17 - UrbanAccess - Andrea Boarini, Antonio Possemato, Giovanni Todesco
@@ -64,8 +94,13 @@ tags:
     description: | 
       Gestione delle strutture private (attività commerciali) registrate
       dai proprietari. Le strutture sono il "target" delle segnalazioni private.
- 
-
+  - name: Routing
+    description: |
+      Calcolo di percorsi pedonali accessibili e geocoding di indirizzi.
+      Il geocoding traduce testo libero in coordinate (Nominatim/OpenStreetMap);
+      il routing calcola il tragitto a piedi tramite motore Valhalla self-hosted.
+      Entrambi sono operazioni di sola lettura e stateless: nessun dato viene
+      persistito a seguito di queste chiamate.
 
 paths:
 
@@ -852,6 +887,178 @@ paths:
         '500':
           description: Errore interno del server.
 
+  /geocode:
+      get:
+        tags:
+          - Routing
+        summary: Traduce un indirizzo testuale in coordinate geografiche
+        description: |
+          Risolve una stringa di ricerca (indirizzo, luogo, punto di interesse) in
+          una lista di coordinate candidate, tramite il servizio **Nominatim** di
+          OpenStreetMap.
+
+          ## Disambiguazione lato client
+          Un indirizzo testuale è intrinsecamente ambiguo (es. "Via Roma" esiste in
+          molte città). L'endpoint restituisce quindi un **array di candidati**
+          ordinati per rilevanza: è il client a scegliere quale sia quello corretto.
+          Se nessun candidato corrisponde, l'array è vuoto (`count: 0`) con stato `200`.
+
+          ## Vincolo geografico
+          I risultati sono limitati a una bounding box che circoscrive il
+          Trentino-Alto Adige, coerente con l'area coperta dal motore di routing.
+          Indirizzi fuori da tale area non vengono restituiti.
+
+          ## Comportamento server-side
+          - La query viene inoltrata a Nominatim con un `User-Agent` identificativo
+            (requisito della usage policy del servizio).
+          - Ogni risultato è normalizzato in `{ label, lng, lat }`, indipendente dal
+            formato grezzo del provider.
+          - L'operazione è di sola lettura, idempotente, senza side-effect.
+        operationId: geocodeIndirizzo
+        security:
+          - bearerAuth: []
+        parameters:
+          - name: q
+            in: query
+            required: true
+            description: |
+              Stringa di ricerca dell'indirizzo o luogo. Minimo 3 caratteri
+              (stringhe più corte producono `400`).
+            schema:
+              type: string
+              minLength: 3
+            example: Piazza Duomo Trento
+        responses:
+          '200':
+            description: |
+              Lista dei candidati corrispondenti alla ricerca. Può essere vuota se
+              nessun luogo corrisponde alla query entro l'area consentita.
+            content:
+              application/json:
+                schema:
+                  $ref: '#/components/schemas/GeocodeResponse'
+                example:
+                  count: 1
+                  candidati:
+                    - label: "Piazza del Duomo, Centro storico, Trento, Trentino-Alto Adige, Italia"
+                      lng: 11.1214267
+                      lat: 46.0673519
+          '400':
+            $ref: '#/components/responses/ValidationError'
+          '401':
+            $ref: '#/components/responses/Unauthorized'
+          '502':
+            description: |
+              Il servizio di geocoding esterno (Nominatim) è irraggiungibile o ha
+              risposto con un errore. Si tratta di un guasto del servizio a monte,
+              non di un problema dell'input.
+            content:
+              application/json:
+                schema:
+                  $ref: '#/components/schemas/Error'
+                example:
+                  error: Servizio di geocoding non disponibile
+          '500':
+            $ref: '#/components/responses/InternalServerError'
+
+  /routes:
+    get:
+      tags:
+        - Routing
+      summary: Calcola un percorso pedonale verso una destinazione
+      description: |
+        Calcola il tragitto pedonale dalla posizione dell'utente a una
+        destinazione, tramite motore di routing **Valhalla** self-hosted con
+        costing `pedestrian`.
+
+        ## Origine hardcoded (fase attuale)
+        In questa fase di sviluppo l'origine è **fissata al centro di Trento**
+        (`[11.1211, 46.0667]`) e non viene rilevata dalla geolocalizzazione reale.
+        Il client NON fornisce l'origine. In una fase successiva l'origine sarà
+        derivata dalla posizione del cittadino autenticato.
+
+        ## Output
+        La risposta contiene la geometria del percorso come **GeoJSON LineString**
+        (array di coordinate `[lng, lat]`), pronta per il rendering su mappa, più
+        distanza in metri e durata stimata in secondi.
+
+        ## Natura stateless
+        Il percorso NON viene persistito: è un dato derivato e deperibile, funzione
+        dello stato corrente della rete. Ogni chiamata ricalcola il tragitto.
+        L'operazione è idempotente e priva di side-effect.
+
+        ## Distinzione degli errori
+        - **`422`**: la destinazione è una coordinata valida ma **non raggiungibile
+          a piedi** (punto isolato dalla rete pedonale, fuori dall'area coperta, o
+          distanza oltre il limite pedonale). Non è un guasto: nessun percorso esiste.
+        - **`502`**: il motore di routing è **irraggiungibile** (servizio spento o
+          errore interno). Guasto reale del servizio a monte.
+      operationId: calcolaPercorso
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: to
+          in: query
+          required: true
+          description: |
+            Coordinate della destinazione nel formato `lng,lat` (due numeri
+            separati da virgola, ordine GeoJSON: prima longitudine, poi latitudine).
+            Range: longitudine ∈ [-180, 180], latitudine ∈ [-90, 90].
+            Tipicamente ottenute da una precedente chiamata a `GET /geocode`.
+          schema:
+            type: string
+          example: "11.1214267,46.0673519"
+      responses:
+        '200':
+          description: Percorso pedonale calcolato con successo.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RouteResponse'
+              example:
+                origin:
+                  lng: 11.1211
+                  lat: 46.0667
+                destination:
+                  lng: 11.1214267
+                  lat: 46.0673519
+                geometry:
+                  type: LineString
+                  coordinates:
+                    - [11.121115, 46.066743]
+                    - [11.121054, 46.066753]
+                    - [11.121305, 46.0673]
+                    - [11.121298, 46.067342]
+                distance: 79
+                duration: 56
+        '400':
+          $ref: '#/components/responses/ValidationError'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '422':
+          description: |
+            Destinazione non raggiungibile a piedi. La coordinata è formalmente
+            valida ma non esiste alcun percorso pedonale: punto isolato dalla rete
+            stradale, fuori dall'area coperta dai dati cartografici, oppure tragitto
+            oltre la distanza massima pedonale.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                error: Nessun percorso pedonale raggiungibile verso la destinazione indicata
+        '502':
+          description: |
+            Il motore di routing (Valhalla) è irraggiungibile o ha restituito un
+            errore non riconducibile all'input. Guasto del servizio a monte.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                error: Servizio di routing temporaneamente non disponibile
+        '500':
+          $ref: '#/components/responses/InternalServerError'
 
 
 components:
@@ -1442,7 +1649,118 @@ components:
           items:
             $ref: '#/components/schemas/StrutturaPrivata'
 
+    GeocodeCandidate:
+      type: object
+      description: Singolo candidato risultante da una ricerca di geocoding.
+      required:
+        - label
+        - lng
+        - lat
+      properties:
+        label:
+          type: string
+          description: Etichetta human-readable completa del luogo (display_name di Nominatim).
+          example: "Piazza del Duomo, Centro storico, Trento, Trentino-Alto Adige, Italia"
+        lng:
+          type: number
+          format: double
+          minimum: -180
+          maximum: 180
+          description: Longitudine.
+          example: 11.1214267
+        lat:
+          type: number
+          format: double
+          minimum: -90
+          maximum: 90
+          description: Latitudine.
+          example: 46.0673519
 
+    GeocodeResponse:
+      type: object
+      description: Risposta della ricerca di geocoding. L'array può essere vuoto.
+      required:
+        - count
+        - candidati
+      properties:
+        count:
+          type: integer
+          minimum: 0
+          description: Numero di candidati restituiti (può essere 0).
+          example: 1
+        candidati:
+          type: array
+          items:
+            $ref: '#/components/schemas/GeocodeCandidate'
+
+    Coordinate:
+      type: object
+      description: Coppia di coordinate geografiche.
+      required:
+        - lng
+        - lat
+      properties:
+        lng:
+          type: number
+          format: double
+          example: 11.1211
+        lat:
+          type: number
+          format: double
+          example: 46.0667
+
+    RouteGeometry:
+      type: object
+      description: |
+        Geometria del percorso in formato GeoJSON LineString. Ogni elemento
+        di `coordinates` è una coppia `[longitudine, latitudine]`.
+      required:
+        - type
+        - coordinates
+      properties:
+        type:
+          type: string
+          enum: [LineString]
+          example: LineString
+        coordinates:
+          type: array
+          description: Sequenza ordinata di vertici del percorso, ordine `[lng, lat]`.
+          items:
+            type: array
+            minItems: 2
+            maxItems: 2
+            items:
+              type: number
+          example:
+            - [11.121115, 46.066743]
+            - [11.121305, 46.0673]
+
+    RouteResponse:
+      type: object
+      description: Percorso pedonale calcolato tra origine e destinazione.
+      required:
+        - origin
+        - destination
+        - geometry
+        - distance
+        - duration
+      properties:
+        origin:
+          $ref: '#/components/schemas/Coordinate'
+        destination:
+          $ref: '#/components/schemas/Coordinate'
+        geometry:
+          $ref: '#/components/schemas/RouteGeometry'
+        distance:
+          type: integer
+          minimum: 0
+          description: Lunghezza totale del percorso in metri.
+          example: 79
+        duration:
+          type: integer
+          minimum: 0
+          description: Durata stimata del percorso a piedi, in secondi.
+          example: 56
 
     Error:
       type: object
