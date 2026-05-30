@@ -6,31 +6,33 @@ const jwt = require('jsonwebtoken');
 const app = require('../app');
 const StrutturaPrivata = require('../models/StrutturaPrivata');
 const Proprietario = require('../models/Proprietario');
+
+const OWNER_ID = '65a3f4e7b8d9c1f4a2e5b6c8';
+const CITIZEN_ID = '65a3f4e7b8d9c1f4a2e5b6c7';
+const OTHER_OWNER_ID = '00000000000000000000beef';
+const FAKE_STRUCTURE_ID = '65b4f4e7b8d9c1f4a2e5b6a9';
  
+const tokenProprietario = jwt.sign(
+    { userId: OWNER_ID, ruolo: 'proprietario' },
+    process.env.JWT_SECRET,
+    { expiresIn: '2h' }
+);
+const tokenCittadino = jwt.sign(
+    { userId: CITIZEN_ID, ruolo: 'cittadino' },
+    process.env.JWT_SECRET,
+    { expiresIn: '2h' }
+);
+
+const payloadValido = () => ({
+    nome: 'Bar Centrale',
+    categoria: 'bar',
+    indirizzo: 'Via Belenzani 14, 38122 Trento TN',
+    geolocalizzazione: { type: 'Point', coordinates: [11.1217, 46.0667] }
+});
+
 describe('POST /api/v1/structures - US7 Registrazione Struttura', () => {
  
-    const OWNER_ID = '65a3f4e7b8d9c1f4a2e5b6c8';
-    const CITIZEN_ID = '65a3f4e7b8d9c1f4a2e5b6c7';
-    const OTHER_OWNER_ID = '00000000000000000000beef';
-    const FAKE_STRUCTURE_ID = '65b4f4e7b8d9c1f4a2e5b6a9';
  
-    const tokenProprietario = jwt.sign(
-        { userId: OWNER_ID, ruolo: 'proprietario' },
-        process.env.JWT_SECRET,
-        { expiresIn: '2h' }
-    );
-    const tokenCittadino = jwt.sign(
-        { userId: CITIZEN_ID, ruolo: 'cittadino' },
-        process.env.JWT_SECRET,
-        { expiresIn: '2h' }
-    );
- 
-    const payloadValido = () => ({
-        nome: 'Bar Centrale',
-        categoria: 'bar',
-        indirizzo: 'Via Belenzani 14, 38122 Trento TN',
-        geolocalizzazione: { type: 'Point', coordinates: [11.1217, 46.0667] }
-    });
  
     let saveSpy, findByIdAndUpdateSpy;
  
