@@ -6,24 +6,29 @@ const jwt = require('jsonwebtoken');
 const app = require('../app');
 const StrutturaPrivata = require('../models/StrutturaPrivata');
 const Proprietario = require('../models/Proprietario');
- 
-describe('POST /api/v1/structures - US7 Registrazione Struttura', () => {
- 
-    const OWNER_ID = '65a3f4e7b8d9c1f4a2e5b6c8';
-    const CITIZEN_ID = '65a3f4e7b8d9c1f4a2e5b6c7';
-    const OTHER_OWNER_ID = '00000000000000000000beef';
-    const FAKE_STRUCTURE_ID = '65b4f4e7b8d9c1f4a2e5b6a9';
- 
-    const tokenProprietario = jwt.sign(
+
+const OWNER_ID = '65a3f4e7b8d9c1f4a2e5b6c8';
+const CITIZEN_ID = '65a3f4e7b8d9c1f4a2e5b6c7';
+const OTHER_OWNER_ID = '00000000000000000000beef';
+const FAKE_STRUCTURE_ID = '65b4f4e7b8d9c1f4a2e5b6a9';
+
+const tokenProprietario = jwt.sign(
         { userId: OWNER_ID, ruolo: 'proprietario' },
         process.env.JWT_SECRET,
         { expiresIn: '2h' }
-    );
-    const tokenCittadino = jwt.sign(
+);
+
+const tokenCittadino = jwt.sign(
         { userId: CITIZEN_ID, ruolo: 'cittadino' },
         process.env.JWT_SECRET,
         { expiresIn: '2h' }
-    );
+);
+ 
+describe('POST /api/v1/structures - US7 Registrazione Struttura', () => {
+ 
+    
+ 
+    
  
     const payloadValido = () => ({
         nome: 'Bar Centrale',
