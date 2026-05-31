@@ -6,7 +6,17 @@
 
       <div class="relative w-full max-w-lg bg-white rounded-[2rem] shadow-2xl p-8 max-h-[90vh] overflow-y-auto z-50">
         <div class="flex justify-between mb-6">
-          <h3 class="text-2xl font-extrabold text-slate-800 tracking-tight">Nuova Segnalazione Privata</h3>
+          <div>
+            <h3 class="text-2xl font-extrabold text-slate-800 tracking-tight">Nuova Segnalazione Privata</h3>
+            <button v-if="user?.nome" type="button" @click="vaiAlProfilo"
+              class="text-xs font-bold text-slate-400 hover:text-emerald-600 transition-colors mt-1 flex items-center gap-1"
+              title="Vai al tuo profilo">
+              <svg xmlns="http://www.w3.org/2000/svg" class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+              </svg>
+              {{ user.nome }} · profilo
+            </button>
+          </div>
           <button type="button" @click="$emit('update:modelValue', false)" class="p-2 text-slate-400 hover:text-rose-500 bg-slate-50 rounded-xl transition-colors">
             <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
@@ -113,13 +123,22 @@
 
 <script setup>
 import { ref, computed, watch, onMounted } from 'vue';
-import { authFetch } from '../services/auth';
+import { useRouter } from 'vue-router';
+import { authFetch, getUser } from '../services/auth';
+
+const router = useRouter();
+const user = getUser();
 
 const props = defineProps({
   modelValue: { type: Boolean, required: true }
 });
 
 const emit = defineEmits(['update:modelValue', 'submitted']);
+
+const vaiAlProfilo = () => {
+  emit('update:modelValue', false);
+  router.push({ name: 'Profilo' });
+};
 
 const API_BASE_URL = '/api/v1';
 

@@ -31,7 +31,7 @@ info:
     L'endopoint segue il pattern PATCH parziale: il body contiene solo i campi da modificare. I campi modificabili sono
     gestiti server-side tramite una whitelist con vincoli per ogni campo (ruolo, validazione, trasformazione).
 
-    Attualmente l'unico campo modificabile è `profiloDisabilita`, riservato ai cittadini, che accetta un array di disabilità.
+    Attualmente i campi modificabili sono `nome` e `cognome` (per tutti i ruoli) e `profiloDisabilita` (riservato ai cittadini).
 
     ## Asset statici (foto segnalazioni)
     Le foto caricate dai cittadini in `POST /publicReports` e `POST /privateReports` vengono
@@ -65,7 +65,6 @@ tags:
       Gestione delle strutture private (attività commerciali) registrate
       dai proprietari. Le strutture sono il "target" delle segnalazioni private.
  
-
 
 paths:
 
@@ -292,6 +291,70 @@ paths:
                 error: Errore interno del server
 
   /users/me:
+    get:
+      tags:
+        - Users
+      summary: Recupera il profilo dell'utente autenticato
+      description: |
+        Restituisce la rappresentazione completa del profilo dell'utente identificato dal JWT.
+
+        **Comportamento server-side:**
+        - L'`userId` viene estratto dal JWT.
+        - La query viene eseguita sul modello base `User`: il documento ritornato include
+          automaticamente i campi del subschema corrispondente al ruolo (`cittadino`,
+          `proprietario`, `operatore`) grazie al meccanismo dei discriminator di Mongoose.
+        - I campi sensibili (`password`) o interni (`__v`, `notifiche`) sono esclusi dalla risposta.
+
+        **Verifica sul token:**
+        - Token mancante, malformato o scaduto produce Errore 401.
+        - Token valido ma utente inesistente (es. eliminato) produce Errore 404.
+      operationId: getProfiloUtente
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Profilo recuperato con successo.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GetProfileResponse'
+              examples:
+                cittadino:
+                  summary: Profilo di un cittadino
+                  value:
+                    user:
+                      _id: 65a3f4e7b8d9c1f4a2e5b6c7
+                      email: mario.rossi@example.com
+                      nome: Mario
+                      cognome: Rossi
+                      ruolo: cittadino
+                      profiloDisabilita: [sediaARotelle]
+                      scoreAffidabilita: 5
+                      createdAt: '2026-05-12T14:30:00.000Z'
+                proprietario:
+                  summary: Profilo di un proprietario
+                  value:
+                    user:
+                      _id: 65a3f4e7b8d9c1f4a2e5b6c8
+                      email: proprietario@example.com
+                      nome: Luigi
+                      cognome: Bianchi
+                      ruolo: proprietario
+                      partitaIVA: '12345678901'
+                      createdAt: '2026-05-12T14:35:00.000Z'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          description: Utente non trovato. Il token è valido ma l'utente associato è stato eliminato o non esiste più.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                error: Utente non trovato
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
     patch:
       tags:
         - Users
@@ -304,17 +367,12 @@ paths:
         Se viene specificato un campo, il suo valore sovrascrive completamente quello esistente.
 
         **Campi modificabili da whitelist:**
-        Attualmente è ammesso solo l'aggiornamento di `profiloDisabilita`
-        (riservato al ruolo `cittadino`).
-        I valori accettati sono: `sediaARotelle`, `cecita`, `sordita`, `ausilioDeambulazione`.
-
-        **Future estensioni:**
-        In futuro l'endpoint in questione accoglierà ulteriori campi modificabili (nome, cognome, ecc.)
-        tramite estensione della whitelist. Il contratto tuttavia non varia, stesso endpoint, body diverso.
+        - `nome`, `cognome`: Modificabili da tutti i ruoli (`cittadino`, `proprietario`, `operatore`).
+        - `profiloDisabilita`: Riservato esclusivamente al ruolo `cittadino`. I valori accettati sono: `sediaARotelle`, `cecita`, `sordita`, `ausilioDeambulazione`.
 
         **Comportamento server-side:**
         - L'`userId` viene estratto dal JWT.
-        - I valori duplicati nell'array vengono deduplicati lato server.
+        - I valori duplicati nell'array `profiloDisabilita` vengono deduplicati lato server.
         - Valori non ammessi nell'enum producono Errore 400.
         - Campi non presenti nella whitelist dei modificabili vengono ignorati.
         - Body vuoto (nessun campo modificabile presente) produce Errore 400.
@@ -322,8 +380,7 @@ paths:
         **Verifica sul token:**
         - Se il token non è valido o scaduto produce Errore 401.
         - Se il token è valido ma l'utente non esiste più (es. eliminato) produce Errore 404.
-        - Se il token passato appartiene a un utente diverso da `cittadino` produce Errore 403 segnalado l'impossiblità di modificare i campi
-        non esistenti come attributi. Questo garantisce che solo chi ha un dato attributo possa modificarlo, evitando false chiamate da parte di utenti con ruoli diversi.
+        - Se il token passato appartiene a un utente con un ruolo diverso da `cittadino` e si tenta di modificare `profiloDisabilita`, produce Errore 403 segnalando l'impossibilità di modificare i campi non esistenti come attributi per quel ruolo. Questo garantisce che solo chi possiede un dato attributo possa modificarlo.
       operationId: aggiornaProfiloUtente
       security:
         - bearerAuth: []
@@ -334,6 +391,8 @@ paths:
             schema:
               $ref: '#/components/schemas/UpdateProfileRequest'
             example:
+              nome: Mario Pasquale
+              cognome: Rossi
               profiloDisabilita: [sediaARotelle, cecita]
       responses:
         '200':
@@ -347,7 +406,7 @@ paths:
                 user:
                   _id: 65a3f4e7b8d9c1f4a2e5b6c7
                   email: mario.rossi@example.com
-                  nome: Mario
+                  nome: Mario Pasquale
                   cognome: Rossi
                   ruolo: cittadino
                   profiloDisabilita: [sediaARotelle, cecita]
@@ -408,7 +467,8 @@ paths:
       description: |
         Crea una segnalazione su suolo pubblico. Solo i cittadini autenticati possono effettuare questa operazione.
         Il body è `multipart/form-data` per permettere l'upload di foto allegate.
-      tags: [publicReports]
+      tags:
+        - Segnalazioni
       security:
         - bearerAuth: []
       requestBody:
@@ -478,7 +538,8 @@ paths:
       summary: Recupera segnalazioni pubbliche con filtri opzionali
       description: |
         Restituisce l'elenco delle segnalazioni pubbliche. Tutti i parametri di query sono opzionali e combinabili.
-      tags: [publicReports]
+      tags:
+        - Segnalazioni
       security:
         - bearerAuth: []
       parameters:
@@ -533,7 +594,8 @@ paths:
       description: |
         Crea una segnalazione relativa a una struttura privata. Solo i cittadini autenticati possono effettuare questa operazione.
         La segnalazione nasce in stato IN_VERIFICA e diventa visibile solo quando lo score di validazione comunitario raggiunge la soglia.
-      tags: [privateReports]
+      tags:
+        - Segnalazioni
       security:
         - bearerAuth: []
       requestBody:
@@ -568,7 +630,7 @@ paths:
                   maximum: 90
                 strutturaAssociata:
                   type: string
-                  pattern: '^[a-fA-F0-9]{24}$'
+                  pattern: '^[a-f0-9]{24}$'
                   description: ObjectId MongoDB della struttura privata
                 foto:
                   type: array
@@ -607,7 +669,8 @@ paths:
       description: |
         Restituisce l'elenco delle segnalazioni private. Per i ruoli non-operatore vengono restituite solo le segnalazioni già validate dalla community (visibile=true).
         Gli operatori vedono anche quelle in stato IN_VERIFICA per finalità di moderazione.
-      tags: [privateReports]
+      tags:
+        - Segnalazioni
       security:
         - bearerAuth: []
       parameters:
@@ -1034,6 +1097,14 @@ components:
         Tutti i campi sono opzionali, ma il body deve contenere almeno
         un campo modificabile presente nella whitelist.
       properties:
+        nome:
+          type: string
+          description: Nuovo nome dell'utente. Modificabile da tutti i ruoli.
+          example: Mario Pasquale
+        cognome:
+          type: string
+          description: Nuovo cognome dell'utente. Modificabile da tutti i ruoli.
+          example: Rossi
         profiloDisabilita:
           type: array
           description: |
@@ -1043,6 +1114,17 @@ components:
             type: string
             enum: [sediaARotelle, cecita, sordita, ausilioDeambulazione]
           example: [sediaARotelle]
+
+    GetProfileResponse:
+      type: object
+      required:
+        - user
+      description: |
+        Risposta di `GET /users/me`. Contiene la rappresentazione pubblica
+        dell'utente autenticato. I campi presenti dipendono dal ruolo.
+      properties:
+        user:
+          $ref: '#/components/schemas/UserPublic'
 
     UpdateProfileResponse:
       type: object

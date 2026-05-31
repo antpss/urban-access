@@ -24,10 +24,11 @@
         class="absolute top-10 bottom-10 left-10 bg-white/95 backdrop-blur shadow-2xl z-[410] flex flex-col w-80 rounded-2xl border border-slate-100"
       >
         <div class="p-6 border-b border-slate-100 relative">
-          <div class="pr-10">
-            <h2 class="text-xl font-extrabold text-slate-800 tracking-tight">Ciao {{ user?.nome }}👋!</h2>
-            <p class="text-sm text-slate-400 font-medium capitalize mt-0.5">{{ user?.ruolo }}</p>
-          </div>
+          <button type="button" @click="vaiAlProfilo"
+            class="pr-10 text-left group w-full" title="Vai al tuo profilo">
+            <h2 class="text-xl font-extrabold text-slate-800 tracking-tight group-hover:text-emerald-600 transition-colors">Ciao {{ user?.nome }}👋!</h2>
+            <p class="text-sm text-slate-400 font-medium capitalize mt-0.5 group-hover:text-emerald-500 transition-colors">{{ user?.ruolo }} · Vedi profilo</p>
+          </button>
           <button @click="isSidebarOpen = false" class="absolute top-6 right-6 p-2 text-slate-400 hover:text-rose-500 rounded-lg hover:bg-rose-50 transition-colors">
             <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
@@ -109,6 +110,10 @@ const onSegnalazioneSubmitted = () => {
 const handleLogout = () => {
   clearSession();
   router.push('/login');
+};
+
+const vaiAlProfilo = () => {
+  router.push({ name: 'Profilo' });
 };
 </script>
 
