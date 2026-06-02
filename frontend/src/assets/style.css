@@ -65,3 +65,20 @@
 .marker-custom svg:hover {
   transform: scale(1.15);
 }
+
+.origin-dot-wrapper { background: transparent !important; border: none !important; }
+.origin-dot {
+  width: 18px; height: 18px; border-radius: 50%;
+  background: #4285F4; border: 3px solid white;
+  box-shadow: 0 0 0 2px rgba(66,133,244,.3), 0 2px 6px rgba(0,0,0,.3);
+  position: relative;
+}
+.origin-dot::after {
+  content: ''; position: absolute; inset: -8px;
+  border-radius: 50%; background: rgba(66,133,244,.25);
+  animation: origin-pulse 2s ease-out infinite;
+}
+@keyframes origin-pulse {
+  0% { transform: scale(.6); opacity: .8; }
+  100% { transform: scale(1.8); opacity: 0; }
+}
