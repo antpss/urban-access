@@ -1,18 +1,20 @@
 const mongoose = require('mongoose');
 const Segnalazione = require('./Segnalazione');
 
+const categoriaPrivata = [
+    'mancanza_rampa',
+    'bagno_non_accessibile',
+    'ascensore_guasto',
+    'spazi_interni_stretti',
+    'altro'
+];
+
 const segnalazionePrivataSchema = new mongoose.Schema({
     categoria: {
         type: String,
         required: [true, 'campo categoria obbligatorio'],
         enum: {
-            values: [
-                'mancanza_rampa',
-                'bagno_non_accessibile',
-                'ascensore_guasto',
-                'spazi_interni_stretti',
-                'altro'
-            ],
+            values: categoriaPrivata,
             message: 'Categoria privata "{VALUE}" non ammessa'
         }
     },
@@ -78,3 +80,4 @@ segnalazionePrivataSchema.pre('validate', function() {
 });
 
 module.exports = Segnalazione.discriminator('privata', segnalazionePrivataSchema);
+module.exports.categoriaPrivata = categoriaPrivata;

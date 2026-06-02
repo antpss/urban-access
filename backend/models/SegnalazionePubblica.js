@@ -1,21 +1,23 @@
 const mongoose = require('mongoose');
 const Segnalazione = require('./Segnalazione');
 
+const categoriaPubblica = [
+    'marciapiede_rotto',
+    'ostacolo_temporaneo',
+    'auto_sosta_vietata',
+    'scalino_non_segnalato',
+    'pavimentazione_dissestata',
+    'semaforo_non_accessibile',
+    'mancanza_rampa',
+    'altro'
+];
+
 const segnalazionePubblicaSchema = new mongoose.Schema({
     categoria: {
         type: String,
         required: [true, 'campo categoria obbligatorio'],
         enum: {
-            values: [
-                'marciapiede_rotto',
-                'ostacolo_temporaneo',
-                'auto_sosta_vietata',
-                'scalino_non_segnalato',
-                'pavimentazione_dissestata',
-                'semaforo_non_accessibile',
-                'mancanza_rampa',
-                'altro'
-            ],
+            values: categoriaPubblica,
             message: 'Categoria pubblica "{VALUE}" non ammessa'
         }
     },
@@ -34,3 +36,4 @@ segnalazionePubblicaSchema.pre('validate', function() {
 });
 
 module.exports = Segnalazione.discriminator('pubblica', segnalazionePubblicaSchema);
+module.exports.categoriaPubblica = categoriaPubblica;

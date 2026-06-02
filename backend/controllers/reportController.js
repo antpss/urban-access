@@ -5,6 +5,9 @@ const SegnalazionePubblica = require('../models/SegnalazionePubblica');
 const SegnalazionePrivata = require('../models/SegnalazionePrivata');
 const StrutturaPrivata = require('../models/StrutturaPrivata');
 
+const { categoriaPubblica } = require('../models/SegnalazionePubblica');
+const { categoriaPrivata } = require('../models/SegnalazionePrivata');
+
 const STATI_AMMESSI = ['APERTA', 'IN_VERIFICA', 'PRESA_IN_CARICO', 'RISOLTA', 'ARCHIVIATA'];
 
 // funzione helper per validazione della bbox query
@@ -188,7 +191,13 @@ exports.getPublicReports = async (req, res) => {
             filter.stato = stato;
         }
 
-        if (categoria) {
+        if(categoria){
+            if(!categoriaPubblica.includes(categoria)){
+                return res.status(400).json({
+                    error: 'Validazione fallita',
+                    details: [{ field: 'categoria', message: `valore non ammesso. Ammessi: ${categoriaPubblica.join(', ')}` }]
+                });
+            }
             filter.categoria = categoria;
         }
 
@@ -232,7 +241,13 @@ exports.getPrivateReports = async (req, res) => {
             filter.stato = stato;
         }
 
-        if (categoria) {
+        if(categoria){
+            if(!categoriaPrivata.includes(categoria)){
+                return res.status(400).json({
+                    error: 'Validazione fallita',
+                    details: [{ field: 'categoria', message: `valore non ammesso. Ammessi: ${categoriaPrivata.join(', ')}` }]
+                });
+            }
             filter.categoria = categoria;
         }
 
