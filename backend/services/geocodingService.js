@@ -17,13 +17,20 @@ async function geocode(query, limit = 5) {
 
     const url = `${NOMINATIM_BASE_URL}/search?${params.toString()}`;
 
-    const response = await fetch(url, {
-        headers: {'User-Agent': NOMINATIM_USER_AGENT}
-    });
+    let response;
+    try {
+        response = await fetch(url, {
+            headers: {'User-Agent': NOMINATIM_USER_AGENT}
+        });
+    } catch (networkError) {
+        const err = new Error(`Servizio di geocoding non irraggiungibile`);
+        err.statusCode = 502;
+        throw err;
+    }
 
     if (!response.ok) {
         const err = new Error(`risposta Nominatim: ${response.status}`);
-        err.statusCode = 502; // bad gateway: il problema è il servizio esterno
+        err.statusCode = 502;
         throw err;
     }
 

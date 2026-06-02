@@ -17,7 +17,8 @@
     "collectCoverageFrom": [
         "controllers/**/*.js",
         "middlewares/**/*.js",
-        "routes/**/*.js"
+        "routes/**/*.js",
+        "services/**/*.js"
     ]
   },
 
