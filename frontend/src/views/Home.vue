@@ -21,7 +21,6 @@
       </div>
 
       <Mappa ref="mappaRef" :categoria="categoriaSelezionata" />
-      <Mappa ref="mappaRef" />
         <SearchRoute :mappa-ref="mappaRef" />
     </main>
 
