@@ -5,3 +5,4 @@ backend/.env.test
 .DS_Store
 backend/uploads/reports
 backend/coverage/
+valhalla_data/

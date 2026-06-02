@@ -21,6 +21,8 @@
       </div>
 
       <Mappa ref="mappaRef" :categoria="categoriaSelezionata" />
+      <Mappa ref="mappaRef" />
+        <SearchRoute :mappa-ref="mappaRef" />
     </main>
 
     <transition name="slide-sidebar">
@@ -95,6 +97,7 @@ import FormSegnalazione from './FormSegnalazione.vue';
 import FormSegnalazionePrivata from './FormSegnalazionePrivata.vue';
 import Mappa from './Mappa.vue';
 import FiltroCategoria from './FiltroCategoria.vue';
+import SearchRoute from './SearchRoute.vue';
 
 const router = useRouter();
 const user = getUser();
