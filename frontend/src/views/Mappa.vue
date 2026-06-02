@@ -13,9 +13,17 @@ import shadowUrl from 'leaflet/dist/images/marker-shadow.png';
 import { authFetch } from '../services/auth';
 L.Icon.Default.mergeOptions({ iconUrl, shadowUrl });
 
+// origine hardcoded in attesa della geolocalizzazione reale
+const ORIGIN_LATLNG = [46.0667, 11.1211];
+
 const mapContainer = ref(null);
 let map = null;
 let markersLayer = null;
+
+// layer dedicati al routing, separati dai marker delle segnalazioni
+let routeLayer = null;
+let originMarker = null;
+let destMarker = null;
 
 function creaIconaCustom(tipo) {
   const colore = tipo === 'pubblica' ? '#0ea5e9' : '#f97316';
@@ -32,6 +40,15 @@ function creaIconaCustom(tipo) {
     iconSize: [28, 42],
     iconAnchor: [14, 42],
     popupAnchor: [0, -38]
+  });
+}
+
+function creaIconaOrigine() {
+  return L.divIcon({
+    className: 'origin-dot-wrapper',
+    html: `<div class="origin-dot"></div>`,
+    iconSize: [22, 22],
+    iconAnchor: [11, 11]
   });
 }
 
@@ -90,7 +107,57 @@ async function caricaSegnalazioni() {
   }
 }
 
-defineExpose({ refresh: caricaSegnalazioni });
+// disegna il percorso sulla mappa
+function drawRoute(routeData, destination) {
+  clearRoute();
+ 
+  // marker destinazione (riusa lo stile pin pubblica)
+  destMarker = L.marker([destination.lat, destination.lng], {
+    icon: creaIconaCustom('pubblica')
+  });
+  if (destination.label) {
+    destMarker.bindPopup(`<b>Destinazione</b>${destination.label}`, {
+      className: 'popup-moderno', closeButton: false, maxWidth: 280
+    });
+  }
+  destMarker.addTo(map);
+ 
+  const latlngs = routeData.geometry.coordinates.map(([lng, lat]) => [lat, lng]);
+ 
+  const line = L.polyline([], {
+    color: '#10b981', weight: 6, opacity: 0.9, lineJoin: 'round', lineCap: 'round'
+  }).addTo(map);
+  routeLayer = line;
+ 
+  let i = 0;
+  const step = Math.max(1, Math.floor(latlngs.length / 60)); // ~60 frame max
+  const timer = setInterval(() => {
+    i += step;
+    line.setLatLngs(latlngs.slice(0, i));
+    if (i >= latlngs.length) {
+      line.setLatLngs(latlngs);
+      clearInterval(timer);
+    }
+  }, 16);
+ 
+  // zoom su origine e destinazione nella stessa vista
+  const fitBounds = L.latLngBounds([ORIGIN_LATLNG, [destination.lat, destination.lng]]);
+  map.fitBounds(fitBounds, { padding: [80, 80], maxZoom: 16 });
+}
+
+// rimuove percorso e marker destinazione
+function clearRoute() {
+  if (routeLayer) { map.removeLayer(routeLayer); routeLayer = null; }
+  if (destMarker) { map.removeLayer(destMarker); destMarker = null; }
+}
+
+function resetView() {
+  clearRoute();
+  map.setView(ORIGIN_LATLNG, 14);
+}
+
+
+defineExpose({ refresh: caricaSegnalazioni, drawRoute, clearRoute, resetView });
 
 onMounted(() => {
   // inizializzazione mappa su Trento
@@ -105,9 +172,17 @@ onMounted(() => {
 
   markersLayer = L.layerGroup().addTo(map);
 
+  originMarker = L.marker(ORIGIN_LATLNG, {
+    icon: creaIconaOrigine(), interactive: false, zIndexOffset: 1000
+  }).addTo(map);  
+
   // ad ogni movimento della mappa ricarica le segnalazioni visibili in quella viewport
   map.on('moveend', caricaSegnalazioni);
 
   caricaSegnalazioni();
 });
 </script>
+
+<style scoped>
+
+</style>
