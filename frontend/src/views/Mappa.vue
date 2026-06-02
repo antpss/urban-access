@@ -84,11 +84,11 @@ async function caricaSegnalazioni() {
 
     const [resPublic, resPrivate] = await Promise.all(richieste);
 
-    if (!resPublic.ok) {
+    if (resPublic && !resPublic.ok) {
       console.error('Errore API publicReports:', resPublic.status, await resPublic.text());
       return;
     }
-    if (!resPrivate.ok) {
+    if (resPrivate && !resPrivate.ok) {
       console.error('Errore API privateReports:', resPrivate.status, await resPrivate.text());
       return;
     }

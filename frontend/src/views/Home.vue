@@ -15,7 +15,12 @@
         </button>
       </transition>
 
-      <Mappa ref="mappaRef" />
+      <!-- filtro categoria (US9): overlay in alto a destra sulla mappa -->
+      <div class="absolute top-6 right-6 z-[401]">
+        <FiltroCategoria v-model="categoriaSelezionata" />
+      </div>
+
+      <Mappa ref="mappaRef" :categoria="categoriaSelezionata" />
     </main>
 
     <transition name="slide-sidebar">
