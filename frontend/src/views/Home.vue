@@ -89,6 +89,7 @@ import { ref } from 'vue';
 import FormSegnalazione from './FormSegnalazione.vue';
 import FormSegnalazionePrivata from './FormSegnalazionePrivata.vue';
 import Mappa from './Mappa.vue';
+import FiltroCategoria from './FiltroCategoria.vue';
 
 const router = useRouter();
 const user = getUser();
@@ -98,6 +99,8 @@ const isModalOpen = ref(false);
 const isModalPrivataOpen = ref(false);
 const showSuccessBanner = ref(false);
 const mappaRef = ref(null);
+
+const categoriaSelezionata = ref('');
 
 const onSegnalazioneSubmitted = () => {
   showSuccessBanner.value = true;

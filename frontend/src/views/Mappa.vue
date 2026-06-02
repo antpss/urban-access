@@ -12,6 +12,7 @@ import iconUrl from 'leaflet/dist/images/marker-icon.png';
 import shadowUrl from 'leaflet/dist/images/marker-shadow.png';
 import { authFetch } from '../services/auth';
 L.Icon.Default.mergeOptions({ iconUrl, shadowUrl });
+const API_BASE_URL = '/api/v1';
 
 const mapContainer = ref(null);
 let map = null;
@@ -44,13 +45,37 @@ async function caricaSegnalazioni() {
     const northEast = bounds.getNorthEast();
     const bbox = `${southWest.lng},${southWest.lat},${northEast.lng},${northEast.lat}`;
 
-    const params = new URLSearchParams({bbox, stato: 'APERTA'});
+    const baseParams = { bbox, stato: 'APERTA' };
 
-    // chiamata parallela per i due endpoint
-    const [resPublic, resPrivate] = await Promise.all([
-      authFetch(`${API_BASE_URL}/publicReports?${params}`),
-      authFetch(`${API_BASE_URL}/privateReports?${params}`)
-    ]);
+    let scope = '';
+    let categoriaValue = '';
+    if (props.categoria) {
+      [scope, categoriaValue] = props.categoria.split(':');
+    }
+
+    const paramsPublic = new URLSearchParams(baseParams);
+    const paramsPrivate = new URLSearchParams(baseParams);
+
+    let chiamaPublic = true;
+    let chiamaPrivate = true;
+
+
+    if(scope === 'pubblica'){
+      paramsPublic.set('categoria', categoriaValue);
+      chiamaPrivate = false; // nessuna privata può corrispondere
+    } 
+    else if(scope === 'privata'){
+      paramsPrivate.set('categoria', categoriaValue);
+      chiamaPublic = false;
+    }
+
+
+    const richieste = [
+      chiamaPublic  ? authFetch(`${API_BASE_URL}/publicReports?${paramsPublic}`)  : Promise.resolve(null),
+      chiamaPrivate ? authFetch(`${API_BASE_URL}/privateReports?${paramsPrivate}`) : Promise.resolve(null),
+    ];
+
+    const [resPublic, resPrivate] = await Promise.all(richieste);
 
     if (!resPublic.ok) {
       console.error('Errore API publicReports:', resPublic.status, await resPublic.text());
@@ -61,10 +86,9 @@ async function caricaSegnalazioni() {
       return;
     }
     
-    const [dataPublic, dataPrivate] = await Promise.all([
-      resPublic.json(),
-      resPrivate.json()
-    ]); 
+    const dataPublic = resPublic ? await resPublic.json() : { segnalazioni: [] };
+    const dataPrivate = resPrivate ? await resPrivate.json() : { segnalazioni: [] };
+
 
     // fusione dei risultati delle due queries in un unico array
     const segnalazioni = [...dataPublic.segnalazioni, ...dataPrivate.segnalazioni];
@@ -91,6 +115,11 @@ async function caricaSegnalazioni() {
 }
 
 defineExpose({ refresh: caricaSegnalazioni });
+
+watch(() => props.categoria, () => {
+  if (map) caricaSegnalazioni();
+});
+
 
 onMounted(() => {
   // inizializzazione mappa su Trento
