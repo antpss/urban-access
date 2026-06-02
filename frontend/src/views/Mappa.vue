@@ -3,7 +3,7 @@
 </template>
 
 <script setup>
-import { ref, onMounted } from 'vue';
+import { ref, onMounted, watch } from 'vue';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css'; //carica la grafica dei pulsanti della mappa
 
@@ -13,6 +13,13 @@ import shadowUrl from 'leaflet/dist/images/marker-shadow.png';
 import { authFetch } from '../services/auth';
 L.Icon.Default.mergeOptions({ iconUrl, shadowUrl });
 const API_BASE_URL = '/api/v1';
+
+const props = defineProps({
+  categoria: {
+    type: String,
+    default: ''
+  }
+});
 
 const mapContainer = ref(null);
 let map = null;
