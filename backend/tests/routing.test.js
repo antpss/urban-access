@@ -1,5 +1,5 @@
 // Test suite US8
-// GET /api/v1/geocode  e  GET /api/v1/routes
+// GET /api/v1/geocode e GET /api/v1/routes
 // i servizi sono simulati, non si testano se Valhalla o Nominatim funzionano
 
 const request = require('supertest');
@@ -7,23 +7,35 @@ const jwt = require('jsonwebtoken');
 const app = require('../app');
 const geocodingService = require('../services/geocodingService');
 const routingService = require('../services/routingService');
-const {POS_TRENTO} = require('../config/routing');
+const { POS_TRENTO } = require('../config/routing');
+const User = require('../models/User');
+const Cittadino = require('../models/Cittadino');
 
 describe('Routing & Geocoding API', () => {
- 
     const CITIZEN_ID = '65a3f4e7b8d9c1f4a2e5b6c7';
- 
+
     const tokenCittadino = jwt.sign(
         { userId: CITIZEN_ID, ruolo: 'cittadino' },
         process.env.JWT_SECRET,
         { expiresIn: '2h' }
     );
- 
-    let geocodeSpy, routeSpy;
- 
+
+    let geocodeSpy, routeSpy, ostacoliSpy, userSpy;
+
+    beforeEach(() => {
+        const leanFn = jest.fn().mockResolvedValue({
+            _id: CITIZEN_ID,
+            profiloDisabilita: ['sediaARotelle']
+        });
+        const selectFn = jest.fn().mockReturnValue({ lean: leanFn });
+        userSpy = jest.spyOn(Cittadino, 'findById').mockReturnValue({ select: selectFn });
+    });
+
     afterEach(() => {
+        if (userSpy) userSpy.mockRestore();
         if (geocodeSpy) geocodeSpy.mockRestore();
         if (routeSpy) routeSpy.mockRestore();
+        if (ostacoliSpy) ostacoliSpy.mockRestore();
     });
  
     // GET /api/v1/geocode?q=<indirizzo>
@@ -88,8 +100,8 @@ describe('Routing & Geocoding API', () => {
             expect(geocodeSpy).not.toHaveBeenCalled();
         });
     });
- 
-    // GET /api/v1/routes?to=<lng,lat>
+
+    // GET /api/v1/routes?to=
     describe('GET /api/v1/routes', () => {
  
         const percorsoFake = {
@@ -102,6 +114,10 @@ describe('Routing & Geocoding API', () => {
         };
  
         test('200: destinazione valida. Percorso con origine hardcoded Trento', async () => {
+       
+            ostacoliSpy = jest.spyOn(routingService, 'getOstacoliIncompatibili')
+                .mockResolvedValue([]);
+
             routeSpy = jest.spyOn(routingService, 'calculateRoute')
                 .mockResolvedValue(percorsoFake);
  
@@ -115,9 +131,47 @@ describe('Routing & Geocoding API', () => {
             expect(res.body.duration).toBe(56);
             expect(res.body.origin).toMatchObject({ lng: POS_TRENTO[0], lat: POS_TRENTO[1] });
             expect(res.body.destination).toMatchObject({ lng: 11.1214267, lat: 46.0673519 });
+            expect(res.body.ostacoli_esclusi).toEqual([]); 
+
             const [originArg, destArg] = routeSpy.mock.calls[0];
             expect(originArg).toMatchObject({ lng: POS_TRENTO[0], lat: POS_TRENTO[1] });
             expect(destArg).toMatchObject({ lng: 11.1214267, lat: 46.0673519 });
+            });
+
+            
+            test('200: include ostacoli_esclusi nel payload e li passa a calculateRoute', async () => {
+            const ostacoliFake = [
+                {
+                segnalazioneId: '665f0c8b2c4d1a001234abcd',
+                categoria: 'mancanza_rampa',
+                tipo: 'pubblica',
+                lng: 11.1219,
+                lat: 46.0671
+                }
+            ];
+
+            ostacoliSpy = jest.spyOn(routingService, 'getOstacoliIncompatibili')
+                .mockResolvedValue(ostacoliFake);
+
+            routeSpy = jest.spyOn(routingService, 'calculateRoute')
+                .mockResolvedValue(percorsoFake);
+
+            const res = await request(app)
+                .get('/api/v1/routes?to=11.1214267,46.0673519')
+                .set('Authorization', `Bearer ${tokenCittadino}`);
+
+            expect(res.status).toBe(200);
+            expect(res.body.ostacoli_esclusi).toEqual(ostacoliFake);
+            expect(ostacoliSpy).toHaveBeenCalledWith(
+                expect.any(Array),
+                { lng: POS_TRENTO[0], lat: POS_TRENTO[1] },
+                { lng: 11.1214267, lat: 46.0673519 }
+            );
+            expect(routeSpy).toHaveBeenCalledWith(
+                { lng: POS_TRENTO[0], lat: POS_TRENTO[1] },
+                { lng: 11.1214267, lat: 46.0673519 },
+                ostacoliFake
+            );
         });
  
         test('400: coordinate fuori range. ValidationError, service mai chiamato', async () => {
@@ -133,24 +187,27 @@ describe('Routing & Geocoding API', () => {
             expect(res.body.details[0]).toMatchObject({ field: 'to' });
             expect(routeSpy).not.toHaveBeenCalled();
         });
- 
+
         test('422: destinazione irraggiungibile (no path)', async () => {
-            // simula Valhalla che risponde "no path": il service lancia con statusCode 422
-            const err = new Error('Nessun percorso pedonale verso la destinazione');
-            err.statusCode = 422;
-            routeSpy = jest.spyOn(routingService, 'calculateRoute').mockRejectedValue(err);
- 
-            const res = await request(app)
-                // simula punto irraggiungibile
-                .get('/api/v1/routes?to=13.5,44.0')
-                .set('Authorization', `Bearer ${tokenCittadino}`);
- 
-            expect(res.status).toBe(422);
-            expect(res.body.error).toMatch(/raggiungibile/i);
+        
+        ostacoliSpy = jest.spyOn(routingService, 'getOstacoliIncompatibili')
+            .mockResolvedValue([]);
+
+        const err = new Error('Nessun percorso pedonale verso la destinazione');
+        err.statusCode = 422;
+        routeSpy = jest.spyOn(routingService, 'calculateRoute').mockRejectedValue(err);
+
+        const res = await request(app)
+            .get('/api/v1/routes?to=13.5,44.0')
+            .set('Authorization', `Bearer ${tokenCittadino}`);
+
+        expect(res.status).toBe(422);
+        expect(res.body.error).toMatch(/raggiungibile/i);
         });
  
         test('502: motore di routing irraggiungibile', async () => {
             // simula Valhalla spento: il service lancia con statusCode 502
+            ostacoliSpy = jest.spyOn(routingService, 'getOstacoliIncompatibili').mockResolvedValue([]);
             const err = new Error('Servizio di routing irraggiungibile');
             err.statusCode = 502;
             routeSpy = jest.spyOn(routingService, 'calculateRoute').mockRejectedValue(err);

@@ -1151,10 +1151,51 @@ paths:
         (array di coordinate `[lng, lat]`), pronta per il rendering su mappa, più
         distanza in metri e durata stimata in secondi.
 
+        Quando il filtro profilo è attivo, la risposta include anche l'array
+        `ostacoli_esclusi` con i punti che Valhalla ha ricevuto come
+        `exclude_locations` utile al client per mostrare un indicatore visivo
+        degli ostacoli bypassati sul tracciato.
+
         ## Natura stateless
         Il percorso NON viene persistito: è un dato derivato e deperibile, funzione
         dello stato corrente della rete. Ogni chiamata ricalcola il tragitto.
         L'operazione è idempotente e priva di side-effect.
+
+        ## Filtro profilo disabilità (US11)
+        Se l'utente autenticato è un `cittadino` con `profiloDisabilita` non vuoto,
+        il sistema recupera automaticamente le segnalazioni attive incompatibili con
+        il suo profilo nell'area del percorso e le passa a Valhalla come
+        `exclude_locations`, così da ricalcolare il tragitto evitando quegli archi.
+
+        **Il profilo viene sempre letto dal JWT** non è un parametro client.
+        Un cittadino non può simulare un profilo diverso dal proprio.
+
+        **Definizione di «segnalazione attiva»:**
+        - `stato ∈ {APERTA, IN_VERIFICA, PRESA_IN_CARICO}` escluse RISOLTA e ARCHIVIATA
+        - Per le segnalazioni private: anche `visibile: true` (solo quelle validate dalla community)
+
+        **Mapping categoria → profilo incompatibile:**
+
+        | Categoria                  | Profili bloccati                               |
+        |----------------------------|------------------------------------------------|
+        | marciapiede_rotto          | sediaARotelle, ausilioDeambulazione            |
+        | pavimentazione_dissestata  | sediaARotelle, ausilioDeambulazione            |
+        | scalino_non_segnalato      | sediaARotelle, ausilioDeambulazione, cecita    |
+        | mancanza_rampa (pubblica)  | sediaARotelle, ausilioDeambulazione            |
+        | ostacolo_temporaneo        | sediaARotelle, cecita                          |
+        | auto_sosta_vietata         | sediaARotelle, cecita                          |
+        | semaforo_non_accessibile   | cecita                                         |
+        | mancanza_rampa (privata)   | sediaARotelle, ausilioDeambulazione            |
+        | ascensore_guasto           | sediaARotelle, ausilioDeambulazione            |
+        | spazi_interni_stretti      | sediaARotelle                                  |
+        | altro                      | (nessuno — troppo generico per bloccare)       |
+
+        `sordita` non è bloccata da nessuna categoria: non genera barriere
+        fisiche al transito pedonale.
+
+        Se `profiloDisabilita` è `[]` o l'utente non è un `cittadino`, nessun
+        filtro viene applicato e il comportamento è identico alla versione
+        pre-US11 (nessuna `exclude_locations` passata a Valhalla).
 
         ## Distinzione degli errori
         - **`422`**: la destinazione è una coordinata valida ma **non raggiungibile
@@ -1179,27 +1220,62 @@ paths:
           example: "11.1214267,46.0673519"
       responses:
         '200':
-          description: Percorso pedonale calcolato con successo.
+          description: |
+            Percorso pedonale calcolato con successo.
+            Se il filtro profilo è attivo, `ostacoli_esclusi` contiene i punti
+            passati a Valhalla come `exclude_locations`; altrimenti è un array vuoto.
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/RouteResponse'
-              example:
-                origin:
-                  lng: 11.1211
-                  lat: 46.0667
-                destination:
-                  lng: 11.1214267
-                  lat: 46.0673519
-                geometry:
-                  type: LineString
-                  coordinates:
-                    - [11.121115, 46.066743]
-                    - [11.121054, 46.066753]
-                    - [11.121305, 46.0673]
-                    - [11.121298, 46.067342]
-                distance: 79
-                duration: 56
+              examples:
+                senza_filtro:
+                  summary: Utente senza profilo disabilità (nessun filtro)
+                  value:
+                    origin:
+                      lng: 11.1211
+                      lat: 46.0667
+                    destination:
+                      lng: 11.1214267
+                      lat: 46.0673519
+                    geometry:
+                      type: LineString
+                      coordinates:
+                        - [11.121115, 46.066743]
+                        - [11.121054, 46.066753]
+                        - [11.121305, 46.0673]
+                        - [11.121298, 46.067342]
+                    distance: 79
+                    duration: 56
+                    ostacoli_esclusi: []
+                con_filtro:
+                  summary: Cittadino con sediaARotelle (2 ostacoli esclusi)
+                  value:
+                    origin:
+                      lng: 11.1211
+                      lat: 46.0667
+                    destination:
+                      lng: 11.1214267
+                      lat: 46.0673519
+                    geometry:
+                      type: LineString
+                      coordinates:
+                        - [11.121115, 46.066743]
+                        - [11.120890, 46.066910]
+                        - [11.121298, 46.067342]
+                    distance: 134
+                    duration: 96
+                    ostacoli_esclusi:
+                      - segnalazioneId: 65b1a2c3d4e5f6a7b8c9d0e1
+                        categoria: mancanza_rampa
+                        tipo: pubblica
+                        lng: 11.121054
+                        lat: 46.066753
+                      - segnalazioneId: 65b1a2c3d4e5f6a7b8c9d0e2
+                        categoria: marciapiede_rotto
+                        tipo: pubblica
+                        lng: 11.121170
+                        lat: 46.066820
         '400':
           $ref: '#/components/responses/ValidationError'
         '401':
@@ -1210,12 +1286,23 @@ paths:
             valida ma non esiste alcun percorso pedonale: punto isolato dalla rete
             stradale, fuori dall'area coperta dai dati cartografici, oppure tragitto
             oltre la distanza massima pedonale.
+
+            **Nota:** può verificarsi anche quando il filtro profilo esclude così
+            tanti archi da rendere irraggiungibile la destinazione. In questo caso
+            il messaggio di errore lo segnala esplicitamente.
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/Error'
-              example:
-                error: Nessun percorso pedonale raggiungibile verso la destinazione indicata
+              examples:
+                destinazione_irraggiungibile:
+                  value:
+                    error: Nessun percorso pedonale raggiungibile verso la destinazione indicata
+                irraggiungibile_per_filtro:
+                  value:
+                    error: >-
+                      Nessun percorso disponibile compatibile con il profilo disabilità.
+                      Prova a disabilitare il filtro o a scegliere una destinazione alternativa.
         '502':
           description: |
             Il motore di routing (Valhalla) è irraggiungibile o ha restituito un
@@ -1944,6 +2031,24 @@ components:
           example:
             - [11.121115, 46.066743]
             - [11.121305, 46.0673]
+    
+    OstacoloEscluso:
+      type: object
+      description: |
+        Rappresentazione di una segnalazione attiva esclusa dal percorso
+        perché incompatibile con il profilo disabilità del cittadino.
+        Corrisponde a un punto passato a Valhalla come `exclude_locations`.
+      required:
+        - segnalazioneId
+        - categoria
+        - tipo
+        - lng
+        - lat
+      properties:
+        segnalazioneId:
+          type: string
+          pattern: '^[a-f0-9]{24}$'
+          description: ObjectId M
 
     RouteResponse:
       type: object

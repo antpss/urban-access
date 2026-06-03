@@ -2,7 +2,7 @@
   <div class="space-y-2">
     <div ref="mapContainer" class="w-full h-64 rounded-xl overflow-hidden border border-slate-200"></div>
     <p class="text-[11px] text-slate-500 font-medium ml-1">
-      Clicca sulla mappa o trascina il marker per posizionare la struttura.
+      Clicca sulla mappa o trascina il marker per posizionare il punto.
       <span v-if="modelValue" class="block font-semibold text-emerald-700">
         Lat: {{ modelValue.lat.toFixed(6) }} — Lng: {{ modelValue.lng.toFixed(6) }}
       </span>
@@ -70,11 +70,16 @@ onMounted(async () => {
   setTimeout(() => map?.invalidateSize(), 200);
 });
 
-//si permeette al parent di forzare update da fuori
+
 watch(() => props.modelValue, (val) => {
-  if (val && map) {
+  if (!map) return;
+
+  if (val) {
     placeOrMoveMarker([val.lat, val.lng]);
     map.setView([val.lat, val.lng], map.getZoom());
+  } else if (marker) {
+    map.removeLayer(marker);
+    marker = null;
   }
 });
 

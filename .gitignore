@@ -6,3 +6,4 @@ backend/.env.test
 backend/uploads/reports
 backend/coverage/
 valhalla_data/
+custom_files/

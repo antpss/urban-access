@@ -1,6 +1,7 @@
 const {POS_TRENTO} = require('../config/routing');
 const geocodingService = require('../services/geocodingService');
 const routingService = require('../services/routingService');
+const Cittadino = require('../models/Cittadino');
 
 // GET /api/v1/geocode?q=<indirizzo>
 exports.geocodeAddress = async (req, res) => {
@@ -62,12 +63,30 @@ exports.calculateRoute = async (req, res) => {
         const origin = { lng: POS_TRENTO[0], lat: POS_TRENTO[1] };
         const destination = {lng, lat};
 
-        const percorso = await routingService.calculateRoute(origin, destination);
+
+        let profiloDisabilita = [];
+
+        if (req.loggedUser?.ruolo === 'cittadino') {
+        const cittadino = await Cittadino.findById(req.loggedUser.userId)
+            .select('profiloDisabilita')
+            .lean();
+
+        profiloDisabilita = cittadino?.profiloDisabilita ?? [];
+        }
+
+        const ostacoli_esclusi = await routingService.getOstacoliIncompatibili(
+            profiloDisabilita,
+            origin,
+            destination
+        );
+
+        const percorso = await routingService.calculateRoute(origin, destination, ostacoli_esclusi);
 
         return res.status(200).json({
             origin,
             destination,
-            ...percorso
+            ...percorso,
+            ostacoli_esclusi,
         });
 
     } catch (err) {
