@@ -142,14 +142,98 @@
           </template>
         </div>
       </div>
+
+      <div v-if="!isLoading && !loadError && !isEditing" class="mt-6">
+        <button type="button" @click="apriModaleEliminazione"
+          class="w-full flex items-center justify-center gap-2 py-3 px-4 text-sm font-bold rounded-xl
+                 text-slate-500 bg-white/95 border border-slate-200
+                 hover:text-rose-600 hover:border-rose-300 hover:bg-rose-50
+                 transition-all">
+          <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+              d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+          </svg>
+          Elimina account
+        </button>
+      </div>
+
     </div>
   </div>
+<!-- MODALE DOPPIA CONFERMA -->
+  <transition name="fade">
+    <div v-if="showDeleteModal"
+      class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/50 backdrop-blur-sm"
+      @click.self="chiudiModaleEliminazione">
+      <div class="bg-white rounded-[2rem] shadow-2xl w-full max-w-md overflow-hidden"
+        role="dialog" aria-modal="true" aria-labelledby="delete-modal-title">
+
+        <!-- intestazione rossa -->
+        <div class="bg-gradient-to-r from-rose-500 to-red-500 px-8 py-6 text-white">
+          <h2 id="delete-modal-title" class="text-xl font-extrabold tracking-tight">Elimina account</h2>
+          <p class="text-sm text-rose-50 font-medium mt-0.5">Operazione irreversibile</p>
+        </div>
+
+        <div class="p-8">
+          <!-- STEP 1: avviso + conferma intenzione -->
+          <template v-if="deleteStep === 1">
+            <p class="text-sm text-slate-600 font-medium leading-relaxed">
+              Stai per eliminare definitivamente il tuo account. Tutti i tuoi dati personali
+              verranno rimossi e <span class="font-bold text-slate-800">non potranno essere recuperati</span>.
+            </p>
+            <div class="mt-6 flex gap-3">
+              <button type="button" @click="chiudiModaleEliminazione"
+                class="flex-1 py-3 px-4 text-sm font-bold rounded-xl text-slate-600 bg-slate-100 hover:bg-slate-200 transition-all">
+                Annulla
+              </button>
+              <button type="button" @click="deleteStep = 2"
+                class="flex-1 py-3 px-4 text-sm font-bold rounded-xl text-white bg-gradient-to-r from-rose-500 to-red-500 hover:from-rose-600 hover:to-red-600 transition-all">
+                Continua
+              </button>
+            </div>
+          </template>
+
+          <!-- STEP 2: password + conferma definitiva -->
+          <template v-else>
+            <p class="text-sm text-slate-600 font-medium leading-relaxed">
+              Per confermare, inserisci la tua password.
+            </p>
+
+            <!-- errore specifico del modale (NON il serverError del form) -->
+            <transition name="fade">
+              <div v-if="deleteError" class="bg-rose-50 border-l-4 border-rose-500 p-3 mt-4 text-sm text-rose-700 rounded-r-xl font-bold">
+                {{ deleteError }}
+              </div>
+            </transition>
+
+            <input type="password" v-model="deletePassword" :disabled="isDeleting"
+              placeholder="Password"
+              autocomplete="current-password"
+              @keyup.enter="confermaEliminazione"
+              class="w-full mt-4 px-4 py-3 border border-slate-200 rounded-xl text-slate-800 outline-none
+                     focus:ring-2 focus:ring-rose-400 focus:bg-white transition-all">
+
+            <div class="mt-6 flex gap-3">
+              <button type="button" @click="chiudiModaleEliminazione" :disabled="isDeleting"
+                class="flex-1 py-3 px-4 text-sm font-bold rounded-xl text-slate-600 bg-slate-100 hover:bg-slate-200 disabled:opacity-60 transition-all">
+                Annulla
+              </button>
+              <button type="button" @click="confermaEliminazione" :disabled="isDeleting || !deletePassword"
+                class="flex-1 py-3 px-4 text-sm font-bold rounded-xl text-white bg-gradient-to-r from-rose-500 to-red-500 hover:from-rose-600 hover:to-red-600 disabled:opacity-60 transition-all">
+                <span v-if="isDeleting">Eliminazione…</span>
+                <span v-else>Elimina definitivamente</span>
+              </button>
+            </div>
+          </template>
+        </div>
+      </div>
+    </div>
+  </transition>
 </template>
 
 <script setup>
 import { ref, reactive, computed, onMounted } from 'vue';
 import { useRouter } from 'vue-router';
-import { authFetch, getToken, getUser, setSession } from '../services/auth';
+import { authFetch, getToken, getUser, setSession, clearSession } from '../services/auth';
 import { homeRouteByRole } from '../router';
 
 const router = useRouter();
@@ -183,6 +267,12 @@ const isSaving = ref(false);     //salvataggio in corso (PATCH)
 const serverError = ref('');
 const serverErrorDetails = ref([]);
 const showSuccess = ref(false);
+
+const showDeleteModal = ref(false);
+const deleteStep = ref(1);
+const deletePassword = ref('');
+const isDeleting = ref(false);
+const deleteError = ref('');
 
 const iniziali = computed(() => {
   const n = (form.nome || '').trim()[0] || '';
@@ -308,6 +398,67 @@ const salva = async () => {
 const tornaIndietro = () => {
   const target = homeRouteByRole[form.ruolo] || homeRouteByRole[getUser()?.ruolo] || 'Login';
   router.push({ name: target });
+};
+
+const apriModaleEliminazione = () => {
+  deleteStep.value = 1;
+  deletePassword.value = '';
+  deleteError.value = '';
+  showDeleteModal.value = true;
+};
+
+const chiudiModaleEliminazione = () => {
+  if (isDeleting.value) return;
+  showDeleteModal.value = false;
+};
+
+// DELETE /users/me non usa authFetch di proposito
+// auhtFetch intercetta l'errore 401 e forza il logout, ma in questo caso
+// vogliamo distinguere il caso di password errata
+const confermaEliminazione = async () => {
+  if (!deletePassword.value || isDeleting.value) return;
+  isDeleting.value = true;
+  deleteError.value = '';
+
+  try {
+    const response = await fetch(`${API_BASE_URL}/users/me`, {
+      method: 'DELETE',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${getToken()}`
+      },
+      body: JSON.stringify({ password: deletePassword.value })
+    });
+
+    const data = await response.json().catch(() => ({}));
+
+    if (response.status === 401) {
+      //distinguo: password errata (resta nel modale) vs token morto (logout)
+      if (data.error === 'Credenziali non valide') {
+        deleteError.value = 'Password errata. Riprova.';
+        deletePassword.value = '';
+        return;
+      }
+      //token assente/scaduto, sessione davvero invalida
+      clearSession();
+      router.push({ name: 'Login' });
+      return;
+    }
+
+    if (!response.ok) {
+      throw new Error(data.error || 'Eliminazione non riuscita.');
+    }
+    
+    clearSession();
+    router.push({ name: 'Login' });
+
+  } catch (err) {
+    deleteError.value = err.message === 'Failed to fetch'
+      ? 'Server non raggiungibile.'
+      : err.message;
+  } finally {
+    isDeleting.value = false;
+  }
 };
 
 onMounted(caricaProfilo);
