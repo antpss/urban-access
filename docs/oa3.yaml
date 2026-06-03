@@ -497,6 +497,111 @@ paths:
                 $ref: '#/components/schemas/Error'
               example:
                 error: Errore interno del server
+    delete:
+      tags:
+          - Users
+      summary: Cancella definitivamente l'account dell'utente autenticato
+      description: |
+        Elimina in modo **permanente e irreversibile** l'account dell'utente identificato
+        dal JWT, insieme ai dati personali associati. Implementa il diritto all'oblio
+        previsto dall'art. 17 del GDPR.
+
+        **Re-autenticazione obbligatoria:**
+        Trattandosi di un'operazione distruttiva, il body deve contenere la `password`
+        corrente dell'utente. La password viene verificata contro l'hash bcrypt salvato.
+        Questa è una semplice re-autenticazione nella singola richiesta: **non** crea né
+        consuma stato server-side, coerentemente con l'architettura stateless.
+
+        **Cancellazione a cascata (server-side):**
+        L'eliminazione tocca dati eterogenei a seconda del ruolo. L'ordine è studiato per
+        eliminare i dati satellite **prima** dello `User`: in assenza di transazioni, un
+        eventuale errore a metà processo lascia l'utente ancora presente e l'operazione
+        ripetibile, evitando dati orfani senza possibilità di re-trigger.
+
+        - **Segnalazioni pubbliche** di cui l'utente è autore: **anonimizzate**
+          (`autore` impostato a `null`). Il dato di pubblica utilità (es. marciapiede rotto
+          su suolo pubblico) viene preservato perché privo di valenza personale una volta
+          rimosso il riferimento all'autore; il diritto all'oblio cede di fronte
+          all'interesse collettivo.
+        - **Segnalazioni private** di cui l'utente è autore: eliminate.
+        - **Voti di validazione** dell'utente: l'`userId` viene rimosso da tutte le
+          `listaValidatori` in cui compare.
+        - Se l'utente è **proprietario**: le sue strutture vengono eliminate, e con esse
+          le segnalazioni private a esse associate.
+        - Infine lo `User` stesso viene eliminato.
+
+        **Nota sullo stato del token:**
+        Essendo l'autenticazione stateless, il JWT già emesso resta crittograficamente
+        valido fino alla scadenza naturale. Tuttavia ogni rotta protetta fallisce al primo
+        accesso al DB (utente inesistente → 404), quindi il token diventa di fatto inerte.
+
+        **Verifica sul token:**
+        - Token mancante, malformato o scaduto produce Errore 401.
+        - Password assente nel body produce Errore 400.
+        - Password errata produce Errore 401 (fallimento di autenticazione).
+        - Token valido ma utente inesistente produce Errore 404.
+      operationId: cancellaProfiloUtente
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        description: Password corrente dell'utente, per conferma dell'operazione distruttiva.
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/DeleteAccountRequest'
+            example:
+              password: SecurePassword12345
+      responses:
+        '200':
+          description: Account eliminato con successo insieme a tutti i dati associati.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DeleteAccountResponse'
+              example:
+                message: Account eliminato con successo
+        '400':
+          description: Password mancante nel body della richiesta.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ValidationError'
+              example:
+                error: Validazione fallita
+                details:
+                  - field: password
+                    message: campo password obbligatorio
+        '401':
+          description: |
+            Autenticazione fallita. Possibili cause:
+            - token mancante, non valido o scaduto
+            - password fornita errata (re-autenticazione non superata)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              examples:
+                tokenMancante:
+                  value:
+                    error: Token mancante
+                tokenScaduto:
+                  value:
+                    error: Token scaduto
+                passwordErrata:
+                  value:
+                    error: Credenziali non valide
+        '404':
+          description: Utente non trovato. Il token è valido ma l'utente associato è stato eliminato o non esiste più.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                error: Utente non trovato
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+  
   /publicReports:
     post:
       summary: Crea una nuova segnalazione pubblica
@@ -1345,6 +1450,28 @@ components:
           example: Profilo aggiornato con successo
         user:
           $ref: '#/components/schemas/UserPublic'
+      
+    DeleteAccountRequest:
+      type: object
+      required:
+        - password
+      properties:
+        password:
+          type: string
+          format: password
+          description: |
+            Password corrente dell'utente. Richiesta per re-autenticazione prima
+            di un'operazione distruttiva e irreversibile.
+          example: SecurePassword12345
+
+    DeleteAccountResponse:
+      type: object
+      required:
+        - message
+      properties:
+        message:
+          type: string
+          example: Account eliminato con successo
 
     CategoriaBarrieraPubblica:
       type: string
