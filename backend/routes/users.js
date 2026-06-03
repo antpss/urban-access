@@ -11,4 +11,8 @@ router.patch('/me', verifyToken, userController.updateMe);
 // lettura profilo utente autenticato
 router.get('/me', verifyToken, userController.getMe);
 
+// DELETE /api/v1/users/me
+// cancellazione definitica dell'account dell'utente autenticato
+router.delete('/me', verifyToken, userController.deleteMe);
+
 module.exports = router;
