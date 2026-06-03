@@ -4,7 +4,7 @@
 
       <div class="absolute inset-0 bg-slate-900/40 backdrop-blur-sm cursor-pointer" @click="$emit('update:modelValue', false)"></div>
 
-      <div class="relative w-full max-w-lg bg-white rounded-[2rem] shadow-2xl p-8 max-h-[90vh] overflow-y-auto z-50">
+      <div class="relative w-full max-w-2xl bg-white rounded-[2rem] shadow-2xl p-8 max-h-[90vh] overflow-y-auto z-50">
         <div class="flex justify-between mb-6">
           <div>
             <h3 class="text-2xl font-extrabold text-slate-800 tracking-tight">Nuova Segnalazione Privata</h3>
@@ -64,21 +64,13 @@
             <p v-if="descrizioneError" class="text-rose-500 text-[11px] mt-1.5 ml-1 font-semibold">{{ descrizioneError }}</p>
           </div>
 
-          <div class="grid grid-cols-2 gap-4">
-            <div>
-              <label class="block text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-1.5 ml-1">Latitudine *</label>
-              <input type="number" v-model.number="form.latitudine" @input="validateLatitudine" step="any" required placeholder="Es. 46.07"
-                class="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-slate-800 outline-none focus:ring-2 focus:ring-emerald-400 focus:bg-white transition-all"
-                :class="{ 'border-rose-400 focus:ring-rose-500': latitudineError }">
-              <p v-if="latitudineError" class="text-rose-500 text-[11px] mt-1.5 ml-1 font-semibold">{{ latitudineError }}</p>
-            </div>
-            <div>
-              <label class="block text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-1.5 ml-1">Longitudine *</label>
-              <input type="number" v-model.number="form.longitudine" @input="validateLongitudine" step="any" required placeholder="Es. 11.12"
-                class="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-slate-800 outline-none focus:ring-2 focus:ring-emerald-400 focus:bg-white transition-all"
-                :class="{ 'border-rose-400 focus:ring-rose-500': longitudineError }">
-              <p v-if="longitudineError" class="text-rose-500 text-[11px] mt-1.5 ml-1 font-semibold">{{ longitudineError }}</p>
-            </div>
+          <!-- MODIFICA: rimossi input manuali latitudine/longitudine e sostituiti con MapPicker -->
+          <div>
+            <label class="block text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-1.5 ml-1">Posizione sulla mappa *</label>
+            <MapPicker v-model="posizione" />
+            <p v-if="posizioneError" class="text-rose-500 text-[11px] mt-1.5 ml-1 font-semibold">
+              {{ posizioneError }}
+            </p>
           </div>
 
           <div>
@@ -122,9 +114,10 @@
 </template>
 
 <script setup>
-import { ref, computed, watch, onMounted } from 'vue';
+import { ref, computed, watch} from 'vue';
 import { useRouter } from 'vue-router';
 import { authFetch, getUser } from '../services/auth';
+import MapPicker from './MapPicker.vue';
 
 const router = useRouter();
 const user = getUser();
@@ -147,40 +140,54 @@ const isLoading = ref(false);
 const serverError = ref('');
 const serverErrorDetails = ref([]);
 const descrizioneError = ref('');
-const latitudineError = ref('');
-const longitudineError = ref('');
 const fileError = ref('');
 
 const struttureDisponibili = ref([]);
+
+
+const posizione = ref(null);
+const posizioneError = ref('');
 
 const form = ref({
   strutturaAssociata: '',
   categoria: '',
   descrizione: '',
-  latitudine: null,
-  longitudine: null,
   foto: []
 });
 
 const fetchStrutture = async () => {
   try {
-    //da implementare nelle successive us
-    //const response = await authFetch(`${API_BASE_URL}/strutture`);
-    if (response.ok) {
-      struttureDisponibili.value = await response.json();
+    // MODIFICA: sistemato bug, ora response esiste davvero
+    const response = await authFetch(`${API_BASE_URL}/structures`);
+
+    const data = await response.json().catch(() => ({}));
+
+    if (!response.ok) {
+      throw new Error(data.error || 'Impossibile caricare le strutture');
     }
+
+    // MODIFICA: supporta sia array diretto sia oggetto { strutture: [...] }
+    struttureDisponibili.value = Array.isArray(data) ? data : (data.strutture || []);
   } catch (error) {
-    console.error("Impossibile caricare le strutture", error);
+    console.error('Impossibile caricare le strutture', error);
+    struttureDisponibili.value = [];
   }
 };
 
 const resetForm = () => {
-  form.value = { strutturaAssociata: '', categoria: '', descrizione: '', latitudine: null, longitudine: null, foto: [] };
+
+  form.value = {
+    strutturaAssociata: '',
+    categoria: '',
+    descrizione: '',
+    foto: []
+  };
+
+  posizione.value = null; 
   serverError.value = '';
   serverErrorDetails.value = [];
   descrizioneError.value = '';
-  latitudineError.value = '';
-  longitudineError.value = '';
+  posizioneError.value = '';
   fileError.value = '';
 };
 
@@ -203,31 +210,15 @@ const validateDescrizione = () => {
   else descrizioneError.value = '';
 };
 
-const validateLatitudine = () => {
-  if (form.value.latitudine !== null && form.value.latitudine !== '') {
-    latitudineError.value = (form.value.latitudine < -90 || form.value.latitudine > 90)
-      ? 'Latitudine deve essere compresa tra -90 e 90.' : '';
-  } else latitudineError.value = '';
-};
-
-const validateLongitudine = () => {
-  if (form.value.longitudine !== null && form.value.longitudine !== '') {
-    longitudineError.value = (form.value.longitudine < -180 || form.value.longitudine > 180)
-      ? 'Longitudine deve essere compresa tra -180 e 180.' : '';
-  } else longitudineError.value = '';
-};
-
 const isFormValid = computed(() =>
   descrizioneError.value === '' &&
-  latitudineError.value === '' &&
-  longitudineError.value === '' &&
+  posizioneError.value === '' &&
   fileError.value === '' &&
   form.value.strutturaAssociata &&
   form.value.categoria &&
   form.value.descrizione &&
   form.value.descrizione.length >= 10 &&
-  form.value.latitudine !== null && form.value.latitudine !== '' &&
-  form.value.longitudine !== null && form.value.longitudine !== ''
+  posizione.value !== null
 );
 
 const handleFileChange = (event) => {
@@ -237,19 +228,35 @@ const handleFileChange = (event) => {
 };
 
 const handleLocalize = () => {
-  if (!navigator.geolocation) return;
-  navigator.geolocation.getCurrentPosition((pos) => {
-    form.value.latitudine = pos.coords.latitude;
-    form.value.longitudine = pos.coords.longitude;
-    validateLatitudine();
-    validateLongitudine();
-  });
+
+  if (!navigator.geolocation) {
+    posizioneError.value = 'Geolocalizzazione non supportata dal browser';
+    return;
+  }
+
+  navigator.geolocation.getCurrentPosition(
+    (pos) => {
+      posizione.value = {
+        lat: pos.coords.latitude,
+        lng: pos.coords.longitude
+      };
+      posizioneError.value = '';
+    },
+    () => {
+      posizioneError.value = 'Impossibile ottenere la posizione corrente';
+    }
+  );
 };
 
 const submitSegnalazione = async () => {
   validateDescrizione();
-  validateLatitudine();
-  validateLongitudine();
+
+
+  if (!posizione.value) {
+    posizioneError.value = 'Seleziona la posizione sulla mappa';
+    return;
+  }
+
   if (!isFormValid.value) return;
 
   isLoading.value = true;
@@ -260,8 +267,11 @@ const submitSegnalazione = async () => {
   formData.append('strutturaAssociata', form.value.strutturaAssociata);
   formData.append('descrizione', form.value.descrizione);
   formData.append('categoria', form.value.categoria);
-  formData.append('latitudine', String(form.value.latitudine));
-  formData.append('longitudine', String(form.value.longitudine));
+
+
+  formData.append('latitudine', String(posizione.value.lat));
+  formData.append('longitudine', String(posizione.value.lng));
+
   form.value.foto.forEach(f => formData.append('foto', f));
 
   try {

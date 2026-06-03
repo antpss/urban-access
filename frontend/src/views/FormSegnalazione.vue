@@ -4,7 +4,7 @@
 
       <div class="absolute inset-0 bg-slate-900/40 backdrop-blur-sm cursor-pointer" @click="$emit('update:modelValue', false)"></div>
 
-      <div class="relative w-full max-w-lg bg-white rounded-[2rem] shadow-2xl p-8 max-h-[90vh] overflow-y-auto z-50">
+      <div class="relative w-full max-w-2xl bg-white rounded-[2rem] shadow-2xl p-8 max-h-[90vh] overflow-y-auto z-50">
         <div class="flex justify-between mb-6">
           <div>
             <h3 class="text-2xl font-extrabold text-slate-800 tracking-tight">Nuova Segnalazione</h3>
@@ -56,21 +56,12 @@
             <p v-if="descrizioneError" class="text-rose-500 text-[11px] mt-1.5 ml-1 font-semibold">{{ descrizioneError }}</p>
           </div>
 
-          <div class="grid grid-cols-2 gap-4">
-            <div>
-              <label class="block text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-1.5 ml-1">Latitudine *</label>
-              <input type="number" v-model.number="form.latitudine" @input="validateLatitudine" step="any" required placeholder="Es. 46.07"
-                class="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-slate-800 outline-none focus:ring-2 focus:ring-emerald-400 focus:bg-white transition-all"
-                :class="{ 'border-rose-400 focus:ring-rose-500': latitudineError }">
-              <p v-if="latitudineError" class="text-rose-500 text-[11px] mt-1.5 ml-1 font-semibold">{{ latitudineError }}</p>
-            </div>
-            <div>
-              <label class="block text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-1.5 ml-1">Longitudine *</label>
-              <input type="number" v-model.number="form.longitudine" @input="validateLongitudine" step="any" required placeholder="Es. 11.12"
-                class="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-slate-800 outline-none focus:ring-2 focus:ring-emerald-400 focus:bg-white transition-all"
-                :class="{ 'border-rose-400 focus:ring-rose-500': longitudineError }">
-              <p v-if="longitudineError" class="text-rose-500 text-[11px] mt-1.5 ml-1 font-semibold">{{ longitudineError }}</p>
-            </div>
+          <div>
+            <label class="block text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-1.5 ml-1">Posizione sulla mappa *</label>
+            <MapPicker v-model="posizione" />
+            <p v-if="posizioneError" class="text-rose-500 text-[11px] mt-1.5 ml-1 font-semibold">
+              {{ posizioneError }}
+            </p>
           </div>
 
           <div>
@@ -117,6 +108,7 @@
 import { ref, computed, watch } from 'vue';
 import { useRouter } from 'vue-router';
 import { authFetch, getUser } from '../services/auth';
+import MapPicker from './MapPicker.vue';
 
 const router = useRouter();
 const user = getUser();
@@ -140,9 +132,11 @@ const isLoading = ref(false);
 const serverError = ref('');
 const serverErrorDetails = ref([]);
 const descrizioneError = ref('');
-const latitudineError = ref('');
-const longitudineError = ref('');
 const fileError = ref('');
+
+// MODIFICA: nuova gestione posizione tramite mappa
+const posizione = ref(null);
+const posizioneError = ref('');
 
 const form = ref({
   categoria: '',
@@ -153,12 +147,12 @@ const form = ref({
 });
 
 const resetForm = () => {
-  form.value = { categoria: '', descrizione: '', latitudine: null, longitudine: null, foto: [] };
+  form.value = { categoria: '', descrizione: '', foto: [] };
+  posizione.value = null; 
   serverError.value = '';
   serverErrorDetails.value = [];
   descrizioneError.value = '';
-  latitudineError.value = '';
-  longitudineError.value = '';
+  posizioneError.value = '';
   fileError.value = '';
 };
 
@@ -196,14 +190,12 @@ const validateLongitudine = () => {
 
 const isFormValid = computed(() =>
   descrizioneError.value === '' &&
-  latitudineError.value === '' &&
-  longitudineError.value === '' &&
+  posizioneError.value === '' &&
   fileError.value === '' &&
   form.value.categoria &&
   form.value.descrizione &&
   form.value.descrizione.length >= 10 &&
-  form.value.latitudine !== null && form.value.latitudine !== '' &&
-  form.value.longitudine !== null && form.value.longitudine !== ''
+  posizione.value !== null
 );
 
 const handleFileChange = (event) => {
@@ -213,19 +205,35 @@ const handleFileChange = (event) => {
 };
 
 const handleLocalize = () => {
-  if (!navigator.geolocation) return;
-  navigator.geolocation.getCurrentPosition((pos) => {
-    form.value.latitudine = pos.coords.latitude;
-    form.value.longitudine = pos.coords.longitude;
-    validateLatitudine();
-    validateLongitudine();
-  });
+
+  if (!navigator.geolocation) {
+    posizioneError.value = 'Geolocalizzazione non supportata dal browser';
+    return;
+  }
+
+  navigator.geolocation.getCurrentPosition(
+    (pos) => {
+      posizione.value = {
+        lat: pos.coords.latitude,
+        lng: pos.coords.longitude
+      };
+      posizioneError.value = '';
+    },
+    () => {
+      posizioneError.value = 'Impossibile ottenere la posizione corrente';
+    }
+  );
 };
 
 const submitSegnalazione = async () => {
   validateDescrizione();
-  validateLatitudine();
-  validateLongitudine();
+
+  // MODIFICA: controllo posizione selezionata su mappa
+  if (!posizione.value) {
+    posizioneError.value = 'Seleziona la posizione sulla mappa';
+    return;
+  }
+
   if (!isFormValid.value) return;
 
   isLoading.value = true;
@@ -235,12 +243,18 @@ const submitSegnalazione = async () => {
   const formData = new FormData();
   formData.append('descrizione', form.value.descrizione);
   formData.append('categoria', form.value.categoria);
-  formData.append('latitudine', String(form.value.latitudine));
-  formData.append('longitudine', String(form.value.longitudine));
+
+  formData.append('latitudine', String(posizione.value.lat));
+  formData.append('longitudine', String(posizione.value.lng));
+
   form.value.foto.forEach(f => formData.append('foto', f));
 
   try {
-    const response = await authFetch(`${API_BASE_URL}/publicReports`, { method: 'POST', body: formData });
+    const response = await authFetch(`${API_BASE_URL}/publicReports`, {
+      method: 'POST',
+      body: formData
+    });
+
     const data = await response.json().catch(() => ({}));
     if (!response.ok) {
       const err = new Error(data.error || data.message || 'Errore sconosciuto durante l\'invio.');
@@ -248,16 +262,17 @@ const submitSegnalazione = async () => {
       throw err;
     }
     emit('update:modelValue', false);
-    emit('submitted');                 
-  } catch (error) {
-    serverError.value = error.message === 'Failed to fetch' ? 'Server non raggiungibile.' : error.message;
+    emit('submitted');
+  } catch (error){
+    serverError.value = error.message === 'Failed to fetch'
+      ? 'Server non raggiungibile.'
+      : error.message;
     serverErrorDetails.value = error.details || [];
   } finally {
     isLoading.value = false;
   }
 };
 </script>
-
 <style scoped>
 .fade-enter-active, .fade-leave-active { transition: opacity 0.3s; }
 .fade-enter-from, .fade-leave-to { opacity: 0; }
