@@ -33,6 +33,8 @@ let routeLayer = null;
 let originMarker = null;
 let destMarker = null;
 
+let ostacoliLayer = null;
+
 function creaIconaCustom(tipo) {
   const colore = tipo === 'pubblica' ? '#0ea5e9' : '#f97316';
   const svgPin = `
@@ -48,6 +50,22 @@ function creaIconaCustom(tipo) {
     iconSize: [28, 42],
     iconAnchor: [14, 42],
     popupAnchor: [0, -38]
+  });
+}
+
+function creaIconaOstacolo() {
+  const svgWarn = `
+    <svg width="30" height="30" viewBox="0 0 30 30" xmlns="http://www.w3.org/2000/svg">
+      <circle cx="15" cy="15" r="14" fill="#f97316" stroke="white" stroke-width="2"/>
+      <text x="15" y="21" text-anchor="middle" font-size="16" fill="white">⚠</text>
+    </svg>
+  `;
+  return L.divIcon({
+    className: 'marker-ostacolo',
+    html: svgWarn,
+    iconSize: [30, 30],
+    iconAnchor: [15, 15],
+    popupAnchor: [0, -18]
   });
 }
 
@@ -170,6 +188,22 @@ function drawRoute(routeData, destination) {
       clearInterval(timer);
     }
   }, 16);
+
+
+  //disegna i marker degli ostacoli esclusi
+  if(routeData.ostacoli_esclusi && routeData.ostacoli_esclusi.length > 0){
+    
+    ostacoliLayer = L.layerGroup().addTo(map);
+    routeData.ostacoli_esclusi.forEach(o => {
+      const label = `<b>Ostacolo escluso</b><br>
+        <span class="text-xs text-slate-500 capitalize">${o.categoria.replaceAll('_', ' ')}</span><br>
+        <span class="text-xs text-slate-400">(${o.tipo})</span>`;
+      L.marker([o.lat, o.lng], { icon: creaIconaOstacolo(), zIndexOffset: 500 })
+        .bindPopup(label, { className: 'popup-moderno', closeButton: false, maxWidth: 220 })
+        .addTo(ostacoliLayer);
+    });
+  }
+  
  
   // zoom su origine e destinazione nella stessa vista
   const fitBounds = L.latLngBounds([ORIGIN_LATLNG, [destination.lat, destination.lng]]);
@@ -180,6 +214,7 @@ function drawRoute(routeData, destination) {
 function clearRoute() {
   if (routeLayer) { map.removeLayer(routeLayer); routeLayer = null; }
   if (destMarker) { map.removeLayer(destMarker); destMarker = null; }
+  if (ostacoliLayer){ map.removeLayer(ostacoliLayer); ostacoliLayer = null; }
 }
 
 function resetView() {

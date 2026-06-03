@@ -23,9 +23,22 @@ export async function calculateRoute(destination) {
     const res = await authFetch(`${API_BASE_URL}/routes?${params}`);
  
     if (!res.ok) {
+        
         let message = 'Impossibile calcolare il percorso';
-        if (res.status === 422) message = 'Destinazione non raggiungibile a piedi';
-        if (res.status === 502) message = 'Servizio di routing non disponibile, riprova';
+        
+        try{
+
+            const body = await res.json();
+            if (body?.error) message = body.error;
+
+        }catch(_){ /* corpo non JSON, usa il fallback */ }
+
+        //fallback localizzati se il backend non ha un messaggio specifico
+        if (res.status === 422 && message === 'Impossibile calcolare il percorso')
+        message = 'Destinazione non raggiungibile a piedi';
+        if (res.status === 502 && message === 'Impossibile calcolare il percorso')
+        message = 'Servizio di routing non disponibile, riprova';
+
         const err = new Error(message);
         err.status = res.status;
         throw err;
