@@ -1,6 +1,7 @@
-// Test suite US24
+// Test suite US24, US13
 // GET  /api/v1/users/me  (visualizzazione profilo)
 // PATCH /api/v1/users/me (modifica nome, cognome, profiloDisabilita)
+// DELETE /api/v1/users/me (cancellazione account con eliminazione dipendenze)
 
 const request = require('supertest');
 const jwt = require('jsonwebtoken');
@@ -8,6 +9,83 @@ const app = require('../app');
 const User = require('../models/User');
 const Cittadino = require('../models/Cittadino');
 const Proprietario = require('../models/Proprietario');
+
+const SegnalazionePrivata = require('../models/SegnalazionePrivata');
+const SegnalazionePubblica = require('../models/SegnalazionePubblica');
+const StrutturaPrivata = require('../models/StrutturaPrivata');
+const bcrypt = require('bcrypt');
+
+describe('US13 - DELETE /api/v1/users/me', () => {
+
+    const CITIZEN_ID = '65a3f4e7b8d9c1f4a2e5b6c7';
+
+    const tokenCittadino = jwt.sign(
+        { userId: CITIZEN_ID, ruolo: 'cittadino' },
+        process.env.JWT_SECRET,
+        { expiresIn: '2h' }
+    );
+
+    afterEach(() => jest.restoreAllMocks());
+
+    // documento con comparePassword controllabile
+    const fakeUserConPassword = (passwordCorretta) => ({
+        _id: CITIZEN_ID,
+        email: 'mario.rossi@example.com',
+        ruolo: 'cittadino',
+        password: '$2b$12$hashfittizio',
+        comparePassword(inserita) {
+            return Promise.resolve(inserita === passwordCorretta);
+        }
+    });
+
+    test('200: password corretta. Cascade eseguito e User eliminato per ultimo', async () => {
+        jest.spyOn(User, 'findById').mockReturnValue({
+            select: jest.fn().mockResolvedValue(fakeUserConPassword('giusta'))
+        });
+
+        const delPrivate = jest.spyOn(SegnalazionePrivata, 'deleteMany').mockResolvedValue({});
+        const anonPublic = jest.spyOn(SegnalazionePubblica, 'updateMany').mockResolvedValue({});
+        const pullValid  = jest.spyOn(SegnalazionePrivata, 'updateMany').mockResolvedValue({});
+        const delUser    = jest.spyOn(User, 'findByIdAndDelete').mockResolvedValue({});
+
+        const res = await request(app)
+            .delete('/api/v1/users/me')
+            .set('Authorization', `Bearer ${tokenCittadino}`)
+            .send({ password: 'giusta' });
+
+        expect(res.status).toBe(200);
+        expect(res.body.message).toBe('Account eliminato con successo');
+
+        expect(anonPublic).toHaveBeenCalledWith(
+            { autore: CITIZEN_ID },
+            { $set: { autore: null } }
+        );
+
+        const ordineUser = delUser.mock.invocationCallOrder[0];
+        expect(ordineUser).toBeGreaterThan(delPrivate.mock.invocationCallOrder[0]);
+        expect(ordineUser).toBeGreaterThan(anonPublic.mock.invocationCallOrder[0]);
+    });
+
+    test('401: password errata. Nessuna scrittura, User NON eliminato', async () => {
+        jest.spyOn(User, 'findById').mockReturnValue({
+            select: jest.fn().mockResolvedValue(fakeUserConPassword('giusta'))
+        });
+
+        const delPrivate = jest.spyOn(SegnalazionePrivata, 'deleteMany');
+        const delUser    = jest.spyOn(User, 'findByIdAndDelete');
+
+        const res = await request(app)
+            .delete('/api/v1/users/me')
+            .set('Authorization', `Bearer ${tokenCittadino}`)
+            .send({ password: 'sbagliata' });
+
+        expect(res.status).toBe(401);
+        expect(res.body.error).toBe('Credenziali non valide');
+
+        expect(delPrivate).not.toHaveBeenCalled();
+        expect(delUser).not.toHaveBeenCalled();
+    });
+});
 
 describe('US24 - Profilo personale /api/v1/users/me', () => {
 
