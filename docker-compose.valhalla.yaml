@@ -14,3 +14,4 @@ services:
       - build_admins=True
       - build_time_zones=False
       - use_default_speeds_config=True
+      - server_threads=2
