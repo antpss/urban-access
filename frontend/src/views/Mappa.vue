@@ -1,27 +1,9 @@
 <template>
   <div ref="mapContainer" class="w-full h-full"></div>
-
-  <!-- Teleport: proietta un componente Vue reattivo dentro il nodo del popup Leaflet.
-       Il target #popup-validazione-target è un div stabile nel popup condiviso.
-       popupMontato garantisce che il nodo esista nel DOM prima del teleport. -->
-  <Teleport v-if="popupMontato && segnalazioneSelezionata" to="#popup-validazione-target">
-    <PannelloValidazione
-      v-if="segnalazioneSelezionata.tipo === 'privata'"
-      :key="segnalazioneSelezionata._id"
-      :report="segnalazioneSelezionata"
-      @validated="onValidated"
-      @score-updated="onScoreUpdated"
-    />
-    <!-- segnalazione pubblica: nessuna validazione, solo info -->
-    <div v-else class="rounded-2xl border border-slate-200 bg-white p-4 w-[260px]">
-      <p class="text-sm font-bold text-sky-600 mb-1">{{ segnalazioneSelezionata.categoria }}</p>
-      <p class="text-sm text-slate-600">{{ segnalazioneSelezionata.descrizione }}</p>
-    </div>
-  </Teleport>
 </template>
 
 <script setup>
-import { ref, onMounted, watch, nextTick } from 'vue';
+import { ref, onMounted, watch } from 'vue';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css'; //carica la grafica dei pulsanti della mappa
 
@@ -29,15 +11,8 @@ import 'leaflet/dist/leaflet.css'; //carica la grafica dei pulsanti della mappa
 import iconUrl from 'leaflet/dist/images/marker-icon.png';
 import shadowUrl from 'leaflet/dist/images/marker-shadow.png';
 import { authFetch } from '../services/auth';
-import PannelloValidazione from './PannelloValidazione.vue';
 L.Icon.Default.mergeOptions({ iconUrl, shadowUrl });
 const API_BASE_URL = '/api/v1';
-
-// stato per il Teleport: segnalazione selezionata e flag di montaggio popup
-const segnalazioneSelezionata = ref(null);
-const popupMontato = ref(false);
-// popup unico condiviso (target stabile per il Teleport)
-let popupCondiviso = null;
 
 const props = defineProps({
   categoria: {
@@ -45,6 +20,9 @@ const props = defineProps({
     default: ''
   }
 });
+
+// la mappa NON gestisce la validazione: notifica solo il parent (Home) al click su un marker
+const emit = defineEmits(['seleziona-segnalazione']);
 
 // origine hardcoded in attesa della geolocalizzazione reale
 const ORIGIN_LATLNG = [46.0667, 11.1211];
@@ -112,7 +90,7 @@ async function caricaSegnalazioni() {
 
     if(scope === 'pubblica'){
       paramsPublic.set('categoria', categoriaValue);
-      chiamaPrivate = false; // nessuna privata può corrispondere
+      chiamaPrivate = false; // nessuna privata puo corrispondere
     } 
     else if(scope === 'privata'){
       paramsPrivate.set('categoria', categoriaValue);
@@ -153,44 +131,13 @@ async function caricaSegnalazioni() {
     segnalazioni.forEach(seg => {
       const [lng, lat] = seg.geolocalizzazione.coordinates;
 
-      // niente bindPopup HTML: al click selezioniamo la segnalazione e apriamo
-      // il popup CONDIVISO, nel cui nodo il Teleport proietta il componente Vue.
+      // al click il marker NON apre un popup: notifica Home che mostrera il modale di validazione
       const marker = L.marker([lat, lng], { icon: creaIconaCustom(seg.tipo) });
-      marker.on('click', () => apriPopupValidazione(seg, [lat, lng]));
+      marker.on('click', () => emit('seleziona-segnalazione', seg));
       marker.addTo(markersLayer);
     });
   } catch (err) {
     console.error("Errore scaricamento segnalazioni:", err);
-  }
-}
-
-// apre il popup condiviso sulla posizione del marker e seleziona la segnalazione.
-// Il contenuto del popup è un div target vuoto; il Teleport vi proietta il pannello.
-function apriPopupValidazione(seg, latlng) {
-  segnalazioneSelezionata.value = seg;
-  popupMontato.value = false;
-
-  popupCondiviso
-    .setLatLng(latlng)
-    .setContent('<div id="popup-validazione-target"></div>')
-    .openOn(map);
-
-  // attendo che Leaflet inserisca il nodo target nel DOM, poi abilito il Teleport
-  nextTick(() => { popupMontato.value = true; });
-}
-
-// la segnalazione è stata validata: aggiorno stato locale e ricarico i marker
-function onValidated({ reportId, stato }) {
-  if (segnalazioneSelezionata.value && segnalazioneSelezionata.value._id === reportId) {
-    segnalazioneSelezionata.value = { ...segnalazioneSelezionata.value, stato };
-  }
-  caricaSegnalazioni();
-}
-
-// aggiornamento incrementale dello score (barra) senza ricaricare tutto
-function onScoreUpdated({ reportId, scoreAssociato }) {
-  if (segnalazioneSelezionata.value && segnalazioneSelezionata.value._id === reportId) {
-    segnalazioneSelezionata.value = { ...segnalazioneSelezionata.value, scoreAssociato };
   }
 }
 
@@ -259,27 +206,10 @@ onMounted(() => {
 
   //sfondo di openstreetmap
   L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png', {
-  attribution: '© OpenStreetMap contributors, © CARTO'
+  attribution: 'copyright OpenStreetMap contributors, CARTO'
   }).addTo(map);
 
   markersLayer = L.layerGroup().addTo(map);
-
-  // popup unico riutilizzato: il suo nodo è il target stabile del Teleport
-  popupCondiviso = L.popup({
-    className: 'popup-moderno',
-    closeButton: true,
-    maxWidth: 320,
-    minWidth: 280,
-    autoPan: true
-  });
-
-  // alla chiusura del popup smonto il Teleport e deseleziono (no nodi orfani)
-  map.on('popupclose', (e) => {
-    if (e.popup === popupCondiviso) {
-      popupMontato.value = false;
-      segnalazioneSelezionata.value = null;
-    }
-  });
 
   originMarker = L.marker(ORIGIN_LATLNG, {
     icon: creaIconaOrigine(), interactive: false, zIndexOffset: 1000
