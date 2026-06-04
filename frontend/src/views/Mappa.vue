@@ -23,7 +23,7 @@ const props = defineProps({
 
 // US10: al click sul bottone "Conferma" dentro il popup, la mappa notifica Home
 // che aprira il modale di validazione. La mappa resta responsabile solo della mappa.
-const emit = defineEmits(['valida-segnalazione']);
+const emit = defineEmits(['valida-segnalazione', 'struttura-selezionata']);
 
 // origine hardcoded in attesa della geolocalizzazione reale
 const ORIGIN_LATLNG = [46.0667, 11.1211];
@@ -32,10 +32,20 @@ const mapContainer = ref(null);
 let map = null;
 let markersLayer = null;
 
-// layer dedicati al routing, separati dai marker delle segnalazioni
+let struttureLayer = null;
+let strutturaSelezionataMarker = null;
+
 let routeLayer = null;
 let originMarker = null;
 let destMarker = null;
+
+function escapeHtml(str) {
+  return String(str)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;');
+}
 
 function creaIconaCustom(tipo) {
   const colore = tipo === 'pubblica' ? '#0ea5e9' : '#f97316';
@@ -61,6 +71,34 @@ function creaIconaOrigine() {
     html: `<div class="origin-dot"></div>`,
     iconSize: [22, 22],
     iconAnchor: [11, 11]
+  });
+}
+
+function creaIconaStruttura(struttura, selezionata = false) {
+  const grigio = '#64748b';
+  const grigioBordo = '#475569';
+  const nomeEscaped = escapeHtml(struttura.nome);
+
+  const svgCasetta = `
+    <svg width="32" height="32" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+      <path d="M12 3 L21 10 L19 10 L19 20 L5 20 L5 10 L3 10 Z"
+            fill="${grigio}" stroke="${grigioBordo}" stroke-width="1" stroke-linejoin="round"/>
+      <rect x="10" y="13" width="4" height="7" fill="white" opacity="0.85"/>
+    </svg>
+  `;
+
+  const html = `
+    <div class="casetta-wrapper${selezionata ? ' selected' : ''}">
+      <div class="casetta-label" style="color:${grigio}">${nomeEscaped}</div>
+      <div class="casetta-icon">${svgCasetta}</div>
+    </div>
+  `;
+
+  return L.divIcon({
+    className: 'struttura-custom',
+    html,
+    iconSize: [32, 32],
+    iconAnchor: [16, 32],
   });
 }
 
@@ -168,6 +206,83 @@ async function caricaSegnalazioni() {
   }
 }
 
+// funzione che scarica le strutture dal backend e le visualizza su mappa
+async function caricaStrutture() {
+  try {
+    const bounds = map.getBounds();
+    const sw = bounds.getSouthWest();
+    const ne = bounds.getNorthEast();
+    const bbox = `${sw.lng},${sw.lat},${ne.lng},${ne.lat}`;
+
+    const params = new URLSearchParams({ bbox });
+
+    let categoriaValue = '';
+    if (props.categoria) {
+      const [scope, value] = props.categoria.split(':');
+      if (scope === 'privata') categoriaValue = value;
+    }
+    if (categoriaValue) params.set('categoria', categoriaValue);
+
+    const res = await authFetch(`${API_BASE_URL}/structures?${params}`);
+    if (!res.ok) {
+      console.error('Errore API structures:', res.status, await res.text());
+      struttureLayer.clearLayers();
+      return;
+    }
+
+    const data = await res.json();
+    const strutture = data.strutture || [];
+
+    struttureLayer.clearLayers();
+    strutturaSelezionataMarker = null;
+
+    strutture.forEach(struttura => {
+      const [lng, lat] = struttura.geolocalizzazione.coordinates;
+
+      const marker = L.marker([lat, lng], {
+        icon: creaIconaStruttura(struttura, false),
+
+      });
+
+      marker._struttura = struttura;
+
+      marker.on('click', () => selezionaStruttura(marker));
+
+      marker.addTo(struttureLayer);
+    });
+  } catch (err) {
+    console.error('Errore scaricamento strutture:', err);
+  }
+}
+
+function selezionaStruttura(marker) {
+  if (strutturaSelezionataMarker === marker) {
+    deselezionaStruttura();
+    emit('struttura-selezionata', null);
+    return;
+  }
+
+  if (strutturaSelezionataMarker) {
+    strutturaSelezionataMarker.setIcon(
+      creaIconaStruttura(strutturaSelezionataMarker._struttura, false)
+    );
+  }
+
+  marker.setIcon(creaIconaStruttura(marker._struttura, true));
+  strutturaSelezionataMarker = marker;
+
+  emit('struttura-selezionata', marker._struttura);
+}
+
+function deselezionaStruttura() {
+  if (strutturaSelezionataMarker) {
+    strutturaSelezionataMarker.setIcon(
+      creaIconaStruttura(strutturaSelezionataMarker._struttura, false)
+    );
+    strutturaSelezionataMarker = null;
+  }
+}
+
 // disegna il percorso sulla mappa
 function drawRoute(routeData, destination) {
   clearRoute();
@@ -218,10 +333,13 @@ function resetView() {
 }
 
 
-defineExpose({ refresh: caricaSegnalazioni, drawRoute, clearRoute, resetView });
+defineExpose({ refresh: caricaSegnalazioni, refreshStrutture: caricaStrutture, deselezionaStruttura, drawRoute, clearRoute, resetView });
 
 watch(() => props.categoria, () => {
-  if (map) caricaSegnalazioni();
+  if (map) {
+    caricaSegnalazioni();
+    caricaStrutture();
+  } 
 });
 
 
@@ -237,15 +355,20 @@ onMounted(() => {
   }).addTo(map);
 
   markersLayer = L.layerGroup().addTo(map);
+  struttureLayer = L.layerGroup().addTo(map);
 
   originMarker = L.marker(ORIGIN_LATLNG, {
     icon: creaIconaOrigine(), interactive: false, zIndexOffset: 1000
   }).addTo(map);  
 
   // ad ogni movimento della mappa ricarica le segnalazioni visibili in quella viewport
-  map.on('moveend', caricaSegnalazioni);
+  map.on('moveend', () => {
+    caricaSegnalazioni();
+    caricaStrutture();
+  });
 
   caricaSegnalazioni();
+  caricaStrutture();
 });
 </script>
 

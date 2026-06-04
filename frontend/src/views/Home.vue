@@ -15,12 +15,11 @@
         </button>
       </transition>
 
-      <!-- filtro categoria (US9): overlay in alto a destra sulla mappa -->
       <div class="absolute top-6 right-6 z-[401]">
         <FiltroCategoria v-model="categoriaSelezionata" />
       </div>
 
-      <Mappa ref="mappaRef" :categoria="categoriaSelezionata" @valida-segnalazione="onValidaSegnalazione" />
+      <Mappa ref="mappaRef" :categoria="categoriaSelezionata" @valida-segnalazione="onValidaSegnalazione" @struttura-selezionata="onStrutturaSelezionata" />
         <SearchRoute :mappa-ref="mappaRef" />
     </main>
 
@@ -86,13 +85,13 @@
     <FormSegnalazione v-model="isModalOpen" @submitted="onSegnalazioneSubmitted" />
     <FormSegnalazionePrivata v-model="isModalPrivataOpen" @submitted="onSegnalazioneSubmitted" />
 
-    <!-- US10: modale di validazione, aperto dal bottone "Conferma" nel popup della mappa -->
     <PannelloValidazione
       v-model="isValidazioneOpen"
       :report="segnalazioneSelezionata"
       @validated="onValidated"
       @score-updated="onScoreUpdated"
     />
+    <VetrinaPanel :struttura="strutturaVetrina" @close="chiudiVetrina" />
   </div>
 </template>
 
@@ -106,6 +105,7 @@ import Mappa from './Mappa.vue';
 import FiltroCategoria from './FiltroCategoria.vue';
 import SearchRoute from './SearchRoute.vue';
 import PannelloValidazione from './PannelloValidazione.vue';
+import VetrinaPanel from './VetrinaPanel.vue';
 
 const router = useRouter();
 const user = getUser();
@@ -118,13 +118,23 @@ const mappaRef = ref(null);
 
 const categoriaSelezionata = ref('');
 
-// US10: stato del modale di validazione e segnalazione selezionata dal popup mappa
 const isValidazioneOpen = ref(false);
 const segnalazioneSelezionata = ref(null);
+
+const strutturaVetrina = ref(null);
 
 const onValidaSegnalazione = (seg) => {
   segnalazioneSelezionata.value = seg;
   isValidazioneOpen.value = true;
+};
+
+const onStrutturaSelezionata = (struttura) => {
+  strutturaVetrina.value = struttura;
+};
+
+const chiudiVetrina = () => {
+  strutturaVetrina.value = null;
+  mappaRef.value?.deselezionaStruttura();
 };
 
 // dopo una validazione riuscita: aggiorno il riferimento locale e ricarico la mappa
