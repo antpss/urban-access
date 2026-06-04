@@ -17,4 +17,17 @@ router.get('/',
     structureController.getStructures
 );
 
+//GET /api/v1/structures/:id  
+router.get('/:id',
+    verifyToken,
+    structureController.getStructureById
+);
+
+//PATCH /api/v1/structures/:id/accessibilita
+router.patch('/:id/accessibilita',
+    verifyToken,
+    requireRole('proprietario'),
+    structureController.updateAccessibilita
+);
+
 module.exports = router;
