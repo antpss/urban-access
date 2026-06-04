@@ -1134,7 +1134,7 @@ paths:
         '500':
           $ref: '#/components/responses/InternalServerError'
  
-  /structures/{id}/accessibilita:
+  /structures/{id}/accessibility:
     patch:
       tags:
         - Strutture
@@ -1187,7 +1187,7 @@ paths:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/UpdateAccessibilitaRequest'
+              $ref: '#/components/schemas/UpdateAccessibilityRequest'
             example:
               rampa: true
               bagnoAccessibile: true
@@ -2193,7 +2193,7 @@ components:
           description: Durata stimata del percorso a piedi, in secondi.
           example: 56
 
-    Accessibilita:
+    Accessibility:
       type: object
       description: |
         Sottodocumento di autocertificazione dell'accessibilità di una
@@ -2226,7 +2226,7 @@ components:
           default: false
           example: false
  
-    UpdateAccessibilitaRequest:
+    UpdateAccessibilityRequest:
       type: object
       description: |
         Payload PATCH parziale per l'autocertificazione. Tutti i campi sono
@@ -2265,7 +2265,7 @@ components:
       required:
         - message
         - struttura
-      description: Risposta di `PATCH /structures/{id}/accessibilita`.
+      description: Risposta di `PATCH /structures/{id}/accessibility`.
       properties:
         message:
           type: string
