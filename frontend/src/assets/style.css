@@ -66,6 +66,57 @@
   transform: scale(1.15);
 }
 
+.struttura-custom {
+  background: transparent;
+  border: none;
+}
+
+.casetta-wrapper {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  transition: transform 0.18s cubic-bezier(0.4, 0, 0.2, 1);
+  transform-origin: bottom center;
+  cursor: pointer;
+}
+
+.casetta-label {
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 1;
+  margin-bottom: 3px;
+  padding: 2px 6px;
+  background: rgba(255, 255, 255, 0.9);
+  border-radius: 6px;
+  white-space: nowrap;
+  opacity: 0;
+  transform: translateY(4px);
+  transition: opacity 0.18s ease, transform 0.18s ease;
+  pointer-events: none;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.12);
+}
+
+.casetta-icon {
+  filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.18));
+  transition: filter 0.18s ease;
+}
+
+.casetta-wrapper:hover {
+  transform: scale(1.08);
+}
+.casetta-wrapper:hover .casetta-label {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+.casetta-wrapper.selected {
+  transform: scale(1.25);
+}
+.casetta-wrapper.selected .casetta-label {
+  opacity: 1;
+  transform: translateY(0);
+}
+
 .origin-dot-wrapper { background: transparent !important; border: none !important; }
 .origin-dot {
   width: 18px; height: 18px; border-radius: 50%;
