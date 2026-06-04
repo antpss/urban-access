@@ -20,7 +20,7 @@
         <FiltroCategoria v-model="categoriaSelezionata" />
       </div>
 
-      <Mappa ref="mappaRef" :categoria="categoriaSelezionata" />
+      <Mappa ref="mappaRef" :categoria="categoriaSelezionata" @seleziona-segnalazione="onSelezionaSegnalazione" />
         <SearchRoute :mappa-ref="mappaRef" />
     </main>
 
@@ -85,6 +85,14 @@
 
     <FormSegnalazione v-model="isModalOpen" @submitted="onSegnalazioneSubmitted" />
     <FormSegnalazionePrivata v-model="isModalPrivataOpen" @submitted="onSegnalazioneSubmitted" />
+
+    <!-- modale di validazione, aperto al click su un marker di segnalazione privata -->
+    <PannelloValidazione
+      v-model="isValidazioneOpen"
+      :report="segnalazioneSelezionata"
+      @validated="onValidated"
+      @score-updated="onScoreUpdated"
+    />
   </div>
 </template>
 
@@ -97,6 +105,7 @@ import FormSegnalazionePrivata from './FormSegnalazionePrivata.vue';
 import Mappa from './Mappa.vue';
 import FiltroCategoria from './FiltroCategoria.vue';
 import SearchRoute from './SearchRoute.vue';
+import PannelloValidazione from './PannelloValidazione.vue';
 
 const router = useRouter();
 const user = getUser();
@@ -108,6 +117,31 @@ const showSuccessBanner = ref(false);
 const mappaRef = ref(null);
 
 const categoriaSelezionata = ref('');
+
+//stato del modale di validazione e segnalazione attualmente selezionata
+const isValidazioneOpen = ref(false);
+const segnalazioneSelezionata = ref(null);
+
+const onSelezionaSegnalazione = (seg) => {
+  // mostra il modale solo per le private (le pubbliche non si validano)
+  if (seg.tipo !== 'privata') return;
+  segnalazioneSelezionata.value = seg;
+  isValidazioneOpen.value = true;
+};
+
+//dopo una validazione riuscita: aggiorno il riferimento locale e ricarico la mappa
+const onValidated = ({ stato }) => {
+  if (segnalazioneSelezionata.value) {
+    segnalazioneSelezionata.value = { ...segnalazioneSelezionata.value, stato };
+  }
+  mappaRef.value?.refresh();
+};
+
+const onScoreUpdated = ({ scoreAssociato }) => {
+  if (segnalazioneSelezionata.value) {
+    segnalazioneSelezionata.value = { ...segnalazioneSelezionata.value, scoreAssociato };
+  }
+};
 
 const onSegnalazioneSubmitted = () => {
   showSuccessBanner.value = true;
