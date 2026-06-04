@@ -1,6 +1,6 @@
 <template>
   <transition name="fade">
-    <div v-if="modelValue && report" class="fixed inset-0 z-50 flex items-center justify-center p-4">
+    <div v-if="modelValue && report" class="fixed inset-0 z-9999 flex items-center justify-center p-4">
 
       <!-- backdrop: click fuori chiude -->
       <div class="absolute inset-0 bg-slate-900/40 backdrop-blur-sm cursor-pointer"

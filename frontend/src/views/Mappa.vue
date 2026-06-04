@@ -74,8 +74,6 @@ async function caricaSegnalazioni() {
     const bbox = `${southWest.lng},${southWest.lat},${northEast.lng},${northEast.lat}`;
 
     // pubbliche: solo APERTA. private: APERTA + IN_VERIFICA (per poterle validare).
-    // getPrivateReports accetta UN solo `stato`, quindi per le private NON inviamo
-    // il filtro stato e filtriamo client-side; per le pubbliche resta APERTA.
     const paramsPublic = new URLSearchParams({ bbox, stato: 'APERTA' });
     const paramsPrivate = new URLSearchParams({ bbox });
 
@@ -88,16 +86,14 @@ async function caricaSegnalazioni() {
     let chiamaPublic = true;
     let chiamaPrivate = true;
 
-
-    if(scope === 'pubblica'){
+    if (scope === 'pubblica') {
       paramsPublic.set('categoria', categoriaValue);
       chiamaPrivate = false; // nessuna privata può corrispondere
     } 
-    else if(scope === 'privata'){
+    else if (scope === 'privata') {
       paramsPrivate.set('categoria', categoriaValue);
       chiamaPublic = false;
     }
-
 
     const richieste = [
       chiamaPublic  ? authFetch(`${API_BASE_URL}/publicReports?${paramsPublic}`)  : Promise.resolve(null),
@@ -133,13 +129,12 @@ async function caricaSegnalazioni() {
       const [lng, lat] = seg.geolocalizzazione.coordinates;
 
       // contenuto popup: come prima (categoria + descrizione).
-      // Per le PRIVATE aggiungo un badge di stato e un bottone "Conferma" che apre il modale.
       let html = `<b>${seg.categoria}</b><br>${seg.descrizione}`;
+      
       if (seg.tipo === 'privata') {
         const statoLabel = seg.stato === 'APERTA' ? 'Confermata' : 'In verifica';
         const coloreStato = seg.stato === 'APERTA' ? '#059669' : '#d97706';
         html += `<div style="margin-top:8px;font-size:11px;font-weight:700;color:${coloreStato}">${statoLabel}</div>`;
-        // data-id identifica la segnalazione al click del bottone
         html += `<button type="button" class="btn-valida-popup" data-id="${seg._id}"
           style="margin-top:8px;width:100%;padding:8px;border:none;border-radius:8px;
           background:#10b981;color:#fff;font-weight:700;cursor:pointer">Conferma segnalazione</button>`;
@@ -152,8 +147,20 @@ async function caricaSegnalazioni() {
           maxWidth: 280
         });
 
-      // conservo la segnalazione sul marker per recuperarla al click del bottone
-      marker._segnalazione = seg;
+      // Il nostro nuovo listener sul singolo marker
+      marker.on('popupopen', (e) => {
+        const node = e.popup.getElement();
+        if (!node) return;
+        
+        const btn = node.querySelector('.btn-valida-popup');
+        if (btn) {
+          btn.onclick = () => {
+            map.closePopup();
+            emit('valida-segnalazione', seg);
+          };
+        }
+      });
+
       marker.addTo(markersLayer);
     });
   } catch (err) {
@@ -230,21 +237,6 @@ onMounted(() => {
   }).addTo(map);
 
   markersLayer = L.layerGroup().addTo(map);
-
-  //quando un popup si apre, se contiene il bottone "Conferma" gli aggancio
-  // il click. Il bottone vive nell'HTML del popup (Leaflet), quindi uso un listener
-  // DOM diretto: al click emetto verso Home la segnalazione del marker, che aprira il modale.
-  map.on('popupopen', (e) => {
-    const node = e.popup.getElement();
-    if (!node) return;
-    const btn = node.querySelector('.btn-valida-popup');
-    if (!btn) return;
-    const seg = e.popup._source && e.popup._source._segnalazione;
-    btn.addEventListener('click', () => {
-      map.closePopup();
-      if (seg) emit('valida-segnalazione', seg);
-    }, { once: true });
-  });
 
   originMarker = L.marker(ORIGIN_LATLNG, {
     icon: creaIconaOrigine(), interactive: false, zIndexOffset: 1000
