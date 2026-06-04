@@ -4,6 +4,7 @@ import LoginView from '../views/LoginView.vue';
 import SelectDisability from '../views/SelectDisability.vue';
 import Home from '../views/Home.vue';
 import HomeProprietario from '../views/HomeProprietario.vue';
+import HomeOperatore from '../views/HomeOperatore.vue';
 import Profilo from '../views/Profilo.vue';
 import { isAuthenticated, getUser } from '../services/auth';
 
@@ -40,6 +41,13 @@ const routes = [
         meta: { requiresAuth: true, role: 'proprietario' }
     },
     {
+        //home dell'operatore comunale: ospita la heatmap delle criticità
+        path: '/home/operatore',
+        name: 'HomeOperatore',
+        component: HomeOperatore,
+        meta: { requiresAuth: true, role: 'operatore' }
+    },
+    {
         //profilo personale: comune a tutti i ruoli, nessun vincolo di ruolo
         path: '/profilo',
         name: 'Profilo',
@@ -55,7 +63,8 @@ const router = createRouter({
 
 export const homeRouteByRole = {
     cittadino: 'Home',
-    proprietario: 'HomeProprietario'
+    proprietario: 'HomeProprietario',
+    operatore: 'HomeOperatore'
 };
 
 router.beforeEach((to, from, next) => {

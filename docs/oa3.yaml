@@ -101,6 +101,11 @@ tags:
       il routing calcola il tragitto a piedi tramite motore Valhalla self-hosted.
       Entrambi sono operazioni di sola lettura e stateless: nessun dato viene
       persistito a seguito di queste chiamate.
+  - name: Admin
+    description: |
+      Endpoint riservati agli operatori del Comune (ruolo `operatore`).
+      Funzioni di backoffice e analisi aggregata sul territorio. Non
+      accessibili a cittadini o proprietari.
 
 paths:
 
@@ -857,6 +862,56 @@ paths:
         '401':
           $ref: '#/components/responses/Unauthorized'
   
+  /privateReports/{id}/validations:
+    post:
+      summary: Conferma (valida) una segnalazione privata
+      description: |
+        Un cittadino autenticato conferma una segnalazione privata.
+        Conferma unica per coppia (cittadino, segnalazione). Non si può validare
+        una propria segnalazione. Ogni conferma somma lo scoreAffidabilita del
+        votante a scoreAssociato; raggiunta la soglia (default 10) la segnalazione
+        passa IN_VERIFICA -> APERTA e 10 punti vengono ripartiti floor(10/N) tra i
+        validatori (cap 14). Voto su segnalazione già APERTA: registrato, nessun punto.
+      tags:
+        - Segnalazioni
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: ObjectId della segnalazione privata da validare
+          schema:
+            type: string
+            pattern: '^[a-fA-F0-9]{24}$'
+          example: 65b1a2c3d4e5f6a7b8c9d0e1
+      responses:
+        '201':
+          description: Voto registrato (soglia raggiunta o non ancora raggiunta)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ValidationResult'
+        '200':
+          description: Voto su segnalazione già validata (nessun punteggio assegnato)
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message: { type: string }
+                  statoSegnalazione: { type: string, example: APERTA }
+                  scoreAssociato: { type: number }
+        '400':
+          $ref: '#/components/responses/ValidationError'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          description: Ruolo non cittadino oppure tentativo di validare una propria segnalazione
+        '404':
+          description: Segnalazione privata non trovata
+        '409':
+          description: Già validata da questo utente, o segnalazione non validabile nello stato corrente
   /structures:
     post:
       tags:
@@ -1316,6 +1371,108 @@ paths:
         '500':
           $ref: '#/components/responses/InternalServerError'
 
+  /admin/heatmap:
+    get:
+      tags:
+        - Admin
+      summary: Heatmap aggregata delle segnalazioni attive
+      operationId: getHeatmap
+      description: |
+        Restituisce un'aggregazione spaziale delle segnalazioni **attive**
+        (stati `APERTA` e `IN_VERIFICA`) raggruppate in celle di griglia
+        geografica. Per ogni cella restituisce il **centroide**, il
+        **conteggio** e la suddivisione per stato.
+
+        Riservato agli operatori comunali (ruolo `operatore`).
+
+        **Definizione di "attiva":** sono escluse le segnalazioni in stato
+        `PRESA_IN_CARICO`, `RISOLTA` e `ARCHIVIATA`, che non rappresentano
+        criticità ancora aperte sul territorio.
+
+        **Distinzione APERTA / IN_VERIFICA:** le pubbliche sono sempre
+        `APERTA`; le private nascono `IN_VERIFICA` e diventano `APERTA` solo
+        dopo validazione crowd. La heatmap mantiene separati i due conteggi
+        (`countAperta`, `countInVerifica`) così il client può pesarli o
+        colorarli diversamente: una cella satura di sole `IN_VERIFICA` è meno
+        affidabile di una satura di `APERTA`.
+
+        **Aggregazione spaziale:** binning per arrotondamento delle coordinate
+        secondo il parametro `precision` (numero di decimali). A 3 decimali la
+        cella è circa 111 m di lato. Non è un geohash: è una griglia regolare
+        lat/lng, scelta per semplicità e adeguatezza alla scala urbana.
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: stato
+          in: query
+          required: false
+          description: |
+            Filtra per singolo stato attivo. Se omesso, include sia `APERTA`
+            sia `IN_VERIFICA`. Valori non attivi vengono rifiutati con 400.
+          schema:
+            type: string
+            enum: [APERTA, IN_VERIFICA]
+        - name: from
+          in: query
+          required: false
+          description: |
+            Limite inferiore (incluso) sulla data di creazione (`createdAt`).
+            Formato ISO 8601.
+          schema:
+            type: string
+            format: date-time
+          example: "2026-01-01T00:00:00.000Z"
+        - name: to
+          in: query
+          required: false
+          description: |
+            Limite superiore (incluso) sulla data di creazione (`createdAt`).
+            Formato ISO 8601. Deve essere >= from.
+          schema:
+            type: string
+            format: date-time
+          example: "2026-06-01T23:59:59.999Z"
+        - name: precision
+          in: query
+          required: false
+          description: |
+            Numero di decimali per il binning delle coordinate (dimensione
+            cella). Maggiore precisione = celle più piccole. Default 3 (~111 m).
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 5
+            default: 3
+      responses:
+        '200':
+          description: Aggregazione heatmap calcolata con successo.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HeatmapResponse'
+              example:
+                count: 2
+                precision: 3
+                celle:
+                  - lat: 46.067
+                    lng: 11.121
+                    count: 7
+                    countAperta: 5
+                    countInVerifica: 2
+                  - lat: 46.069
+                    lng: 11.125
+                    count: 3
+                    countAperta: 0
+                    countInVerifica: 3
+        '400':
+          $ref: '#/components/responses/ValidationError'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
 
 components:
 
@@ -1329,6 +1486,30 @@ components:
         Scadenza: 2 ore. Header atteso: `Authorization: Bearer <token>`.
 
   schemas:
+
+    ValidationResult:
+      type: object
+      properties:
+        message: { type: string }
+        statoSegnalazione:
+          type: string
+          enum: [IN_VERIFICA, APERTA]
+        scoreAssociato:
+          type: number
+          description: Score aggregato sulla segnalazione dopo il voto
+        sogliaValidazione: { type: number }
+        validata:
+          type: boolean
+          description: true se questo voto ha fatto scattare la validazione
+        numValidatori:
+          type: integer
+          description: Numero validatori al momento della validazione (solo se validata=true)
+        puntiPerValidatore:
+          type: integer
+          description: floor(10 / numValidatori) (solo se validata=true)
+        scoreMancante:
+          type: number
+          description: Punti mancanti alla soglia (solo se validata=false)
 
     LoginRequest:
       type: object
@@ -2076,6 +2257,64 @@ components:
           minimum: 0
           description: Durata stimata del percorso a piedi, in secondi.
           example: 56
+
+    HeatmapCella:
+      type: object
+      description: |
+        Singola cella della griglia. `lat`/`lng` sono il centroide della cella
+        (coordinate arrotondate alla precisione richiesta).
+      required:
+        - lat
+        - lng
+        - count
+        - countAperta
+        - countInVerifica
+      properties:
+        lat:
+          type: number
+          format: double
+          description: Latitudine del centroide della cella.
+          example: 46.067
+        lng:
+          type: number
+          format: double
+          description: Longitudine del centroide della cella.
+          example: 11.121
+        count:
+          type: integer
+          minimum: 1
+          description: Conteggio totale segnalazioni attive nella cella.
+          example: 7
+        countAperta:
+          type: integer
+          minimum: 0
+          description: Quante delle segnalazioni della cella sono in stato APERTA.
+          example: 5
+        countInVerifica:
+          type: integer
+          minimum: 0
+          description: Quante delle segnalazioni della cella sono in stato IN_VERIFICA.
+          example: 2
+
+    HeatmapResponse:
+      type: object
+      required:
+        - count
+        - precision
+        - celle
+      properties:
+        count:
+          type: integer
+          minimum: 0
+          description: Numero di celle restituite (può essere 0).
+        precision:
+          type: integer
+          description: Precisione di binning effettivamente applicata.
+          example: 3
+        celle:
+          type: array
+          items:
+            $ref: '#/components/schemas/HeatmapCella'
 
     Error:
       type: object

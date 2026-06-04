@@ -21,6 +21,10 @@ const props = defineProps({
   }
 });
 
+// US10: al click sul bottone "Conferma" dentro il popup, la mappa notifica Home
+// che aprira il modale di validazione. La mappa resta responsabile solo della mappa.
+const emit = defineEmits(['valida-segnalazione']);
+
 // origine hardcoded in attesa della geolocalizzazione reale
 const ORIGIN_LATLNG = [46.0667, 11.1211];
 
@@ -87,7 +91,9 @@ async function caricaSegnalazioni() {
     const northEast = bounds.getNorthEast();
     const bbox = `${southWest.lng},${southWest.lat},${northEast.lng},${northEast.lat}`;
 
-    const baseParams = { bbox, stato: 'APERTA' };
+    // pubbliche: solo APERTA. private: APERTA + IN_VERIFICA (per poterle validare).
+    const paramsPublic = new URLSearchParams({ bbox, stato: 'APERTA' });
+    const paramsPrivate = new URLSearchParams({ bbox });
 
     let scope = '';
     let categoriaValue = '';
@@ -95,22 +101,17 @@ async function caricaSegnalazioni() {
       [scope, categoriaValue] = props.categoria.split(':');
     }
 
-    const paramsPublic = new URLSearchParams(baseParams);
-    const paramsPrivate = new URLSearchParams(baseParams);
-
     let chiamaPublic = true;
     let chiamaPrivate = true;
 
-
-    if(scope === 'pubblica'){
+    if (scope === 'pubblica') {
       paramsPublic.set('categoria', categoriaValue);
       chiamaPrivate = false; // nessuna privata può corrispondere
     } 
-    else if(scope === 'privata'){
+    else if (scope === 'privata') {
       paramsPrivate.set('categoria', categoriaValue);
       chiamaPublic = false;
     }
-
 
     const richieste = [
       chiamaPublic  ? authFetch(`${API_BASE_URL}/publicReports?${paramsPublic}`)  : Promise.resolve(null),
@@ -131,25 +132,54 @@ async function caricaSegnalazioni() {
     const dataPublic = resPublic ? await resPublic.json() : { segnalazioni: [] };
     const dataPrivate = resPrivate ? await resPrivate.json() : { segnalazioni: [] };
 
+    // private: tengo solo APERTA + IN_VERIFICA; scarto RISOLTA/ARCHIVIATA/PRESA_IN_CARICO
+    const STATI_MAPPA_PRIVATA = ['APERTA', 'IN_VERIFICA'];
+    const privateFiltrate = (dataPrivate.segnalazioni || [])
+      .filter(s => STATI_MAPPA_PRIVATA.includes(s.stato));
 
     // fusione dei risultati delle due queries in un unico array
-    const segnalazioni = [...dataPublic.segnalazioni, ...dataPrivate.segnalazioni];
+    const segnalazioni = [...(dataPublic.segnalazioni || []), ...privateFiltrate];
 
     markersLayer.clearLayers();
-    
+
     //si cicla sui dati ricevuti da mongodb
     segnalazioni.forEach(seg => {
       const [lng, lat] = seg.geolocalizzazione.coordinates;
+
+      // contenuto popup: come prima (categoria + descrizione).
+      let html = `<b>${seg.categoria}</b><br>${seg.descrizione}`;
       
-      //creiamo il marker e attacchiamo il popup con la descrizione della barriera
-      L.marker([lat, lng], { icon: creaIconaCustom(seg.tipo) })
-        .bindPopup(`<b>${seg.categoria}</b><br>${seg.descrizione}`, {
+      if (seg.tipo === 'privata') {
+        const statoLabel = seg.stato === 'APERTA' ? 'Confermata' : 'In verifica';
+        const coloreStato = seg.stato === 'APERTA' ? '#059669' : '#d97706';
+        html += `<div style="margin-top:8px;font-size:11px;font-weight:700;color:${coloreStato}">${statoLabel}</div>`;
+        html += `<button type="button" class="btn-valida-popup" data-id="${seg._id}"
+          style="margin-top:8px;width:100%;padding:8px;border:none;border-radius:8px;
+          background:#10b981;color:#fff;font-weight:700;cursor:pointer">Conferma segnalazione</button>`;
+      }
+
+      const marker = L.marker([lat, lng], { icon: creaIconaCustom(seg.tipo) })
+        .bindPopup(html, {
           className: 'popup-moderno',
           closeButton: false,
           maxWidth: 280
-        })
-        .addTo(markersLayer);
+        });
 
+      // Il nostro nuovo listener sul singolo marker
+      marker.on('popupopen', (e) => {
+        const node = e.popup.getElement();
+        if (!node) return;
+        
+        const btn = node.querySelector('.btn-valida-popup');
+        if (btn) {
+          btn.onclick = () => {
+            map.closePopup();
+            emit('valida-segnalazione', seg);
+          };
+        }
+      });
+
+      marker.addTo(markersLayer);
     });
   } catch (err) {
     console.error("Errore scaricamento segnalazioni:", err);

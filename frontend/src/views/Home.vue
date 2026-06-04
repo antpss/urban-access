@@ -20,7 +20,7 @@
         <FiltroCategoria v-model="categoriaSelezionata" />
       </div>
 
-      <Mappa ref="mappaRef" :categoria="categoriaSelezionata" />
+      <Mappa ref="mappaRef" :categoria="categoriaSelezionata" @valida-segnalazione="onValidaSegnalazione" />
         <SearchRoute :mappa-ref="mappaRef" />
     </main>
 
@@ -85,6 +85,14 @@
 
     <FormSegnalazione v-model="isModalOpen" @submitted="onSegnalazioneSubmitted" />
     <FormSegnalazionePrivata v-model="isModalPrivataOpen" @submitted="onSegnalazioneSubmitted" />
+
+    <!-- US10: modale di validazione, aperto dal bottone "Conferma" nel popup della mappa -->
+    <PannelloValidazione
+      v-model="isValidazioneOpen"
+      :report="segnalazioneSelezionata"
+      @validated="onValidated"
+      @score-updated="onScoreUpdated"
+    />
   </div>
 </template>
 
@@ -97,6 +105,7 @@ import FormSegnalazionePrivata from './FormSegnalazionePrivata.vue';
 import Mappa from './Mappa.vue';
 import FiltroCategoria from './FiltroCategoria.vue';
 import SearchRoute from './SearchRoute.vue';
+import PannelloValidazione from './PannelloValidazione.vue';
 
 const router = useRouter();
 const user = getUser();
@@ -108,6 +117,29 @@ const showSuccessBanner = ref(false);
 const mappaRef = ref(null);
 
 const categoriaSelezionata = ref('');
+
+// US10: stato del modale di validazione e segnalazione selezionata dal popup mappa
+const isValidazioneOpen = ref(false);
+const segnalazioneSelezionata = ref(null);
+
+const onValidaSegnalazione = (seg) => {
+  segnalazioneSelezionata.value = seg;
+  isValidazioneOpen.value = true;
+};
+
+// dopo una validazione riuscita: aggiorno il riferimento locale e ricarico la mappa
+const onValidated = ({ stato }) => {
+  if (segnalazioneSelezionata.value) {
+    segnalazioneSelezionata.value = { ...segnalazioneSelezionata.value, stato };
+  }
+  mappaRef.value?.refresh();
+};
+
+const onScoreUpdated = ({ scoreAssociato }) => {
+  if (segnalazioneSelezionata.value) {
+    segnalazioneSelezionata.value = { ...segnalazioneSelezionata.value, scoreAssociato };
+  }
+};
 
 const onSegnalazioneSubmitted = () => {
   showSuccessBanner.value = true;

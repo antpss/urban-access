@@ -251,8 +251,9 @@ exports.getPrivateReports = async (req, res) => {
             filter.categoria = categoria;
         }
 
-        if (req.loggedUser.ruolo !== 'operatore') {
-            filter.visibile = true;
+        // Cittadini/proprietari vedono le private in stati "vivi": IN_VERIFICA (validabili) e APERTA (validate).
+        if (req.loggedUser.ruolo !== 'operatore' && !stato) {
+            filter.stato = { $in: ['IN_VERIFICA', 'APERTA'] };
         }
 
         const segnalazioni = await Segnalazione.find(filter).select('-__v -bloccaModifica -listaValidatori -numAnomalie').lean();

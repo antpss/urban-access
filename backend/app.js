@@ -18,6 +18,7 @@ const publicReportsRoutes = require('./routes/publicReports');
 const privateReportsRoutes = require('./routes/privateReports');
 const structuresRoutes = require('./routes/struttura');
 const routingRoutes = require('./routes/routing');
+const adminRoutes = require('./routes/admin');
 
 const app = express();
 
@@ -33,6 +34,7 @@ app.use('/api/v1/users', usersRoutes);
 app.use('/api/v1/publicReports', publicReportsRoutes);
 app.use('/api/v1/privateReports', privateReportsRoutes);
 app.use('/api/v1/structures', structuresRoutes);
+app.use('/api/v1/admin', adminRoutes);
 app.use('/api/v1', routingRoutes);
 
 // error handler multer (uguale a prima)
