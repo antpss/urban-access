@@ -857,6 +857,56 @@ paths:
         '401':
           $ref: '#/components/responses/Unauthorized'
   
+  /privateReports/{id}/validations:
+    post:
+      summary: Conferma (valida) una segnalazione privata
+      description: |
+        Un cittadino autenticato conferma una segnalazione privata.
+        Conferma unica per coppia (cittadino, segnalazione). Non si può validare
+        una propria segnalazione. Ogni conferma somma lo scoreAffidabilita del
+        votante a scoreAssociato; raggiunta la soglia (default 10) la segnalazione
+        passa IN_VERIFICA -> APERTA e 10 punti vengono ripartiti floor(10/N) tra i
+        validatori (cap 14). Voto su segnalazione già APERTA: registrato, nessun punto.
+      tags:
+        - Segnalazioni
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: ObjectId della segnalazione privata da validare
+          schema:
+            type: string
+            pattern: '^[a-fA-F0-9]{24}$'
+          example: 65b1a2c3d4e5f6a7b8c9d0e1
+      responses:
+        '201':
+          description: Voto registrato (soglia raggiunta o non ancora raggiunta)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ValidationResult'
+        '200':
+          description: Voto su segnalazione già validata (nessun punteggio assegnato)
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message: { type: string }
+                  statoSegnalazione: { type: string, example: APERTA }
+                  scoreAssociato: { type: number }
+        '400':
+          $ref: '#/components/responses/ValidationError'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          description: Ruolo non cittadino oppure tentativo di validare una propria segnalazione
+        '404':
+          description: Segnalazione privata non trovata
+        '409':
+          description: Già validata da questo utente, o segnalazione non validabile nello stato corrente
   /structures:
     post:
       tags:
@@ -1242,6 +1292,30 @@ components:
         Scadenza: 2 ore. Header atteso: `Authorization: Bearer <token>`.
 
   schemas:
+
+    ValidationResult:
+      type: object
+      properties:
+        message: { type: string }
+        statoSegnalazione:
+          type: string
+          enum: [IN_VERIFICA, APERTA]
+        scoreAssociato:
+          type: number
+          description: Score aggregato sulla segnalazione dopo il voto
+        sogliaValidazione: { type: number }
+        validata:
+          type: boolean
+          description: true se questo voto ha fatto scattare la validazione
+        numValidatori:
+          type: integer
+          description: Numero validatori al momento della validazione (solo se validata=true)
+        puntiPerValidatore:
+          type: integer
+          description: floor(10 / numValidatori) (solo se validata=true)
+        scoreMancante:
+          type: number
+          description: Punti mancanti alla soglia (solo se validata=false)
 
     LoginRequest:
       type: object
