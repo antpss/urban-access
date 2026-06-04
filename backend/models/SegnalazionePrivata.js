@@ -44,11 +44,12 @@ const segnalazionePrivataSchema = new mongoose.Schema({
         type: Number,
         default: 0
     },
+    //soglia per l'allarme al comune (US future)
     sogliaAllarme: {
         type: Number,
         default: 5
     },
-    //definisce se la segnalazione viene mostrata sulla mappa (derivabile da `stato`)
+    //definisce se la segnalazione viene mostrata sulla mappa (ormai derivabile da `stato`)
     visibile: {
         type: Boolean,
         default: false
@@ -61,7 +62,7 @@ segnalazionePrivataSchema.pre('validate', function() {
         this.stato = 'IN_VERIFICA';
     }
 
-
+    //le segnalazioni IN_VERIFICA sono comunque VISIBILI in mappa, così i cittadini le vedono e possono validarle.
     if (this.stato === 'IN_VERIFICA') {
         this.visibile = true;
     }
