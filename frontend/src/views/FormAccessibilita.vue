@@ -117,7 +117,7 @@ watch(() => props.modelValue, (aperto) => {
   if (aperto) {
     serverError.value = '';
     serverErrorDetails.value = [];
-    const a = props.struttura?.accessibilita || {};
+    const a = props.struttura?.accessibility || {};
     for (const p of PARAMETRI) {
       form.value[p.key] = a[p.key] === true;
     }
@@ -150,7 +150,7 @@ const submit = async () => {
   };
 
   try {
-    const res = await authFetch(`${API_BASE_URL}/structures/${props.struttura._id}/accessibilita`, {
+    const res = await authFetch(`${API_BASE_URL}/structures/${props.struttura._id}/accessibility`, {
       method: 'PATCH',
       body: JSON.stringify(payload)
     });

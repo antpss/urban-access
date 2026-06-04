@@ -60,7 +60,7 @@
               </span>
             </div>
             <p class="text-sm text-slate-500 mt-2 flex-1">{{ s.indirizzo }}</p>
-            <!--pulsante che apre il form di autocertificazione per questa struttura -->
+            <!-- pulsante che apre il form di autocertificazione per questa struttura -->
             <button type="button" @click="apriAccessibilita(s)"
                     class="mt-4 w-full py-2 text-sm font-bold rounded-lg text-emerald-600 bg-white border border-emerald-200 hover:bg-emerald-50 transition-colors">
               Modifica accessibilità

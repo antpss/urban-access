@@ -23,11 +23,11 @@ router.get('/:id',
     structureController.getStructureById
 );
 
-//PATCH /api/v1/structures/:id/accessibilita
-router.patch('/:id/accessibilita',
+//PATCH /api/v1/structures/:id/accessibility
+router.patch('/:id/accessibility',
     verifyToken,
     requireRole('proprietario'),
-    structureController.updateAccessibilita
+    structureController.updateAccessibility
 );
 
 module.exports = router;

@@ -231,8 +231,8 @@ const CAMPI_ACCESSIBILITA = [
     'ingressoSenzaGradini', 'parcheggioRiservato'
 ];
 
-//PATCH /api/v1/structures/:id/accessibilita
-exports.updateAccessibilita = async (req, res) =>{
+//PATCH /api/v1/structures/:id/accessibility
+exports.updateAccessibility = async (req, res) =>{
     try {
         const { id } = req.params;
         const body = req.body || {};
@@ -300,8 +300,8 @@ exports.updateAccessibilita = async (req, res) =>{
         });
 
     } catch (err) {
-        
-        console.error('[PATCH /structures/:id/accessibilita]', err);
+
+        console.error('[PATCH /structures/:id/accessibility]', err);
         if (err.name === 'ValidationError') {
             const details = Object.values(err.errors).map(e => ({
                 field: e.path,
