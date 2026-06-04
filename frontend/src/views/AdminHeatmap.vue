@@ -50,7 +50,7 @@
       <div class="pt-2 border-t border-slate-100">
         <span class="block text-xs font-bold text-slate-500 mb-2 uppercase tracking-wide">Intensità</span>
         <div class="h-3 w-full rounded-full"
-          style="background: linear-gradient(to right, #2b83ba, #abdda4, #ffffbf, #fdae61, #d7191c);"></div>
+          style="background: linear-gradient(to right, #ffffb2, #fecc5c, #fd8d3c, #e31a1c);"></div>
         <div class="flex justify-between text-[10px] font-semibold text-slate-400 mt-1">
           <span>Bassa</span>
           <span>Alta</span>
@@ -86,12 +86,14 @@ const messaggio = ref('');
 const messaggioErrore = ref(false);
 
 //converte le celle del backend nel formato richiesto da leaflet.heat: [lat, lng, intensity].
-//l'intensità è il count normalizzato sul massimo della risposta, così il gradiente
-//usa l'intero range [0,1] indipendentemente dai valori assoluti.
+//intensità con pavimento alto: una cella con 1 segnalazione parte già nella fascia calda,
+//così la heatmap resta leggibile anche con pochi dati. con molte segnalazioni questi
+//valori andranno ritarati per tornare a distinguere le zone davvero critiche.
 function celleToHeatPoints(celle) {
-  if (!celle.length) return [];
-  const maxCount = Math.max(...celle.map(c => c.count));
-  return celle.map(c => [c.lat, c.lng, c.count / maxCount]);
+  return celle.map(c => {
+    const intensita = Math.min(1, 0.6 + c.count * 0.15);
+    return [c.lat, c.lng, intensita];
+  });
 }
 
 async function caricaHeatmap() {
@@ -125,11 +127,14 @@ async function caricaHeatmap() {
       map.removeLayer(heatLayer);
       heatLayer = null;
     }
+    //radius/blur ampi e minOpacity alta per rendere visibili anche poche celle isolate;
+    //gradiente sui toni caldi perché blu/verde su tile chiare quasi non si vedono.
     heatLayer = L.heatLayer(punti, {
-      radius: 25,
-      blur: 15,
+      radius: 35,
+      blur: 25,
+      minOpacity: 0.5,
       maxZoom: 17,
-      gradient: { 0.0: '#2b83ba', 0.25: '#abdda4', 0.5: '#ffffbf', 0.75: '#fdae61', 1.0: '#d7191c' }
+      gradient: { 0.0: '#ffffb2', 0.4: '#fecc5c', 0.7: '#fd8d3c', 1.0: '#e31a1c' }
     });
 
     if (heatVisibile.value) heatLayer.addTo(map);
@@ -144,7 +149,7 @@ async function caricaHeatmap() {
   }
 }
 
-// il toggle non rifà la fetch: aggiunge/rimuove solo il layer già calcolato.
+//il toggle non rifà la fetch: aggiunge/rimuove solo il layer già calcolato
 watch(heatVisibile, (visibile) => {
   if (!map || !heatLayer) return;
   if (visibile) heatLayer.addTo(map);
