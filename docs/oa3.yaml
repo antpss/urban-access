@@ -1056,6 +1056,211 @@ paths:
         '500':
           description: Errore interno del server.
 
+
+  /structures/{id}:
+    get:
+      tags:
+        - Strutture
+      summary: Recupera una singola struttura per id
+      description: |
+        Restituisce la rappresentazione completa di una struttura, incluso il
+        sottodocumento `accessibilita` e il badge derivato `accessibile`.
+ 
+        Endpoint di sola lettura. Accessibile a qualsiasi utente autenticato:
+        i dati di accessibilità di una struttura sono informazione pubblica
+        (è il loro scopo — mostrare il badge ai clienti).
+ 
+        **Visibilità del campo `proprietario`:** incluso solo se il chiamante
+        è il proprietario della struttura, altrimenti omesso per privacy
+        (stessa logica di `GET /structures`).
+      operationId: getStrutturaById
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: ObjectId della struttura.
+          schema:
+            type: string
+            pattern: '^[a-fA-F0-9]{24}$'
+          example: 65b4f4e7b8d9c1f4a2e5b6a9
+      responses:
+        '200':
+          description: Struttura trovata.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GetStrutturaResponse'
+              example:
+                struttura:
+                  _id: 65b4f4e7b8d9c1f4a2e5b6a9
+                  nome: Bar Centrale
+                  categoria: bar
+                  indirizzo: Via Belenzani 14, 38122 Trento TN
+                  geolocalizzazione:
+                    type: Point
+                    coordinates: [11.1217, 46.0667]
+                  accessibilita:
+                    rampa: true
+                    ascensore: false
+                    bagnoAccessibile: true
+                    ingressoSenzaGradini: true
+                    parcheggioRiservato: false
+                  accessibile: true
+                  createdAt: '2026-05-15T10:00:00.000Z'
+                  updatedAt: '2026-05-16T09:00:00.000Z'
+        '400':
+          description: id non è un ObjectId valido (24 hex).
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ValidationError'
+              example:
+                error: Validazione fallita
+                details:
+                  - field: id
+                    message: ObjectId non valido
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          description: Struttura non trovata.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                error: Struttura non trovata
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+ 
+  /structures/{id}/accessibilita:
+    patch:
+      tags:
+        - Strutture
+      summary: Compila/aggiorna l'autocertificazione di accessibilità di una struttura
+      description: |
+        Permette al **proprietario della struttura** di autocertificare i
+        parametri di accessibilità (rampa, ascensore, bagno accessibile, ecc.).
+ 
+        ## Semantica PATCH parziale
+        Il body contiene solo i parametri da modificare. I parametri non
+        presenti restano invariati. Ogni parametro è un booleano.
+ 
+        ## Badge derivato (NON scrivibile dal client)
+        Il campo `accessibile` **non** è accettato nel body: è calcolato
+        server-side. Regola corrente: la struttura è `accessibile = true` se
+        **almeno 3** parametri di accessibilità risultano `true`. La soglia è
+        una decisione di dominio implementata nel modello, non nel client; il
+        client riceve sempre il valore autoritativo nella risposta.
+ 
+        ## Autorizzazione (duplice controllo)
+        - **Ruolo:** solo `proprietario` (middleware `requireRole`).
+        - **Ownership:** l'`id` della struttura deve appartenere al proprietario
+          autenticato (`struttura.proprietario === JWT.userId`). Un proprietario
+          NON può modificare l'accessibilità di una struttura altrui → `403`.
+          Il controllo di solo ruolo non basta: distingue i proprietari dai
+          cittadini, ma non un proprietario dall'altro.
+ 
+        ## Comportamento server-side
+        - L'`id` viene validato come ObjectId (24 hex) prima della query.
+        - Solo i campi presenti nella whitelist di `accessibilita` vengono
+          applicati; campi sconosciuti o `accessibile` nel body sono ignorati.
+        - Dopo l'applicazione, un hook Mongoose ricalcola `accessibile`.
+      operationId: aggiornaAccessibilitaStruttura
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: ObjectId della struttura da aggiornare.
+          schema:
+            type: string
+            pattern: '^[a-fA-F0-9]{24}$'
+          example: 65b4f4e7b8d9c1f4a2e5b6a9
+      requestBody:
+        required: true
+        description: |
+          Sottoinsieme dei parametri di accessibilità da modificare.
+          Deve contenere almeno un campo valido.
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateAccessibilitaRequest'
+            example:
+              rampa: true
+              bagnoAccessibile: true
+              ingressoSenzaGradini: true
+      responses:
+        '200':
+          description: |
+            Accessibilità aggiornata. Ritorna la struttura completa con il
+            badge `accessibile` ricalcolato.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UpdateStrutturaResponse'
+              example:
+                message: Accessibilità aggiornata con successo
+                struttura:
+                  _id: 65b4f4e7b8d9c1f4a2e5b6a9
+                  nome: Bar Centrale
+                  categoria: bar
+                  indirizzo: Via Belenzani 14, 38122 Trento TN
+                  geolocalizzazione:
+                    type: Point
+                    coordinates: [11.1217, 46.0667]
+                  accessibilita:
+                    rampa: true
+                    ascensore: false
+                    bagnoAccessibile: true
+                    ingressoSenzaGradini: true
+                    parcheggioRiservato: false
+                  accessibile: true
+                  proprietario: 65a3f4e7b8d9c1f4a2e5b6c8
+                  createdAt: '2026-05-15T10:00:00.000Z'
+                  updatedAt: '2026-05-16T09:00:00.000Z'
+        '400':
+          description: |
+            Input non valido. Possibili cause:
+            - `id` non è un ObjectId valido (24 hex)
+            - nessun campo di accessibilità valido presente nel body
+            - un parametro non è di tipo booleano
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ValidationError'
+              example:
+                error: Validazione fallita
+                details:
+                  - field: rampa
+                    message: deve essere un valore booleano
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          description: |
+            Accesso negato. Possibili cause:
+            - ruolo diverso da `proprietario`
+            - la struttura non appartiene al proprietario autenticato
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                error: Accesso negato. Puoi modificare solo le tue strutture.
+        '404':
+          description: Struttura non trovata.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                error: Struttura non trovata
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+
   /geocode:
       get:
         tags:
@@ -1673,44 +1878,6 @@ components:
           format: date-time
           example: '2026-05-15T09:20:00.000Z'
 
-    CreateSegnalazionePubblicaForm:
-      type: object
-      description: |
-        Payload `multipart/form-data` per la creazione di una segnalazione
-        pubblica. La geolocalizzazione è espressa come due campi piatti
-        (`longitudine`, `latitudine`) ricomposti server-side in `GeoJSONPoint`.
-      properties:
-        descrizione:
-          type: string
-          minLength: 10
-          maxLength: 1000
-          description: Descrizione testuale della barriera.
-          example: Marciapiede dissestato in prossimità delle strisce pedonali.
-        categoria:
-          $ref: '#/components/schemas/CategoriaBarrieraPubblica'
-        longitudine:
-          type: string
-          description: |
-            Longitudine GPS (valore numerico trasmesso come stringa per
-            limite di `multipart/form-data`). Range [-180, 180].
-          example: '11.1217'
-        latitudine:
-          type: string
-          description: |
-            Latitudine GPS (valore numerico trasmesso come stringa per
-            limite di `multipart/form-data`). Range [-90, 90].
-          example: '46.0700'
-        foto:
-          type: array
-          description: |
-            Array di file immagine. Massimo 5 file, ciascuno ≤ 5MB.
-            MIME ammessi: `image/jpeg`, `image/png`, `image/webp`.
-            Campo opzionale: una segnalazione può essere creata senza foto.
-          maxItems: 5
-          items:
-            type: string
-            format: binary
-
     SegnalazionePubblica:
       description: |
         Rappresentazione completa di una segnalazione su suolo pubblico
@@ -1730,52 +1897,6 @@ components:
                 ObjectId dell'operatore comunale assegnato. `null` finché non
                 avviene l'assegnazione.
               example: null
-
-    CreateSegnalazionePubblicaResponse:
-      type: object
-      description: Risposta alla creazione di una segnalazione pubblica.
-      required:
-        - message
-        - segnalazione
-      properties:
-        message:
-          type: string
-          example: Segnalazione creata con successo
-        segnalazione:
-          $ref: '#/components/schemas/SegnalazionePubblica'
-
-    CreateSegnalazionePrivataForm:
-      type: object
-      description: |
-        Payload `multipart/form-data` per la creazione di una segnalazione privata.
-        Identico a `CreateSegnalazionePubblicaForm` con in più il campo obbligatorio
-        `strutturaAssociata`.
-      properties:
-        strutturaAssociata:
-          type: string
-          description: L'ObjectId della StrutturaPrivata a cui associare la segnalazione.
-          example: 65b4f4e7b8d9c1f4a2e5b6a9
-        descrizione:
-          type: string
-          minLength: 10
-          maxLength: 1000
-          example: "Assenza di rampa all'ingresso del locale, impossibile entrare con sedia a rotelle."
-        categoria:
-          $ref: '#/components/schemas/CategoriaBarrieraPrivata'
-        longitudine:
-          type: string
-          description: Range [-180, 180].
-          example: '11.1217'
-        latitudine:
-          type: string
-          description: Range [-90, 90].
-          example: '46.0700'
-        foto:
-          type: array
-          maxItems: 5
-          items:
-            type: string
-            format: binary
 
     SegnalazionePrivata:
       description: |
@@ -1872,11 +1993,6 @@ components:
           pattern: '^[a-f0-9]{24}$'
           description: ObjectId del proprietario che ha registrato la struttura.
           example: 65a3f4e7b8d9c1f4a2e5b6c8
-        stato:
-          type: string
-          enum: [attiva, dismessa]
-          default: attiva
-          example: attiva
         createdAt:
           type: string
           format: date-time
@@ -2076,6 +2192,87 @@ components:
           minimum: 0
           description: Durata stimata del percorso a piedi, in secondi.
           example: 56
+
+    Accessibilita:
+      type: object
+      description: |
+        Sottodocumento di autocertificazione dell'accessibilità di una
+        struttura. Ogni parametro è un booleano con default `false`.
+        Compilato dal proprietario (US15).
+      properties:
+        rampa:
+          type: boolean
+          description: Presenza di rampa di accesso per superare dislivelli all'ingresso.
+          default: false
+          example: true
+        ascensore:
+          type: boolean
+          description: Presenza di ascensore utilizzabile per raggiungere i piani.
+          default: false
+          example: false
+        bagnoAccessibile:
+          type: boolean
+          description: Presenza di servizio igienico accessibile a persone con disabilità.
+          default: false
+          example: true
+        ingressoSenzaGradini:
+          type: boolean
+          description: Ingresso a raso, privo di gradini.
+          default: false
+          example: true
+        parcheggioRiservato:
+          type: boolean
+          description: Presenza di posto auto riservato a persone con disabilità.
+          default: false
+          example: false
+ 
+    UpdateAccessibilitaRequest:
+      type: object
+      description: |
+        Payload PATCH parziale per l'autocertificazione. Tutti i campi sono
+        opzionali ma almeno uno deve essere presente. Il campo derivato
+        `accessibile` NON è accettato (verrebbe ignorato): è calcolato
+        esclusivamente server-side.
+      minProperties: 1
+      properties:
+        rampa:
+          type: boolean
+          example: true
+        ascensore:
+          type: boolean
+          example: false
+        bagnoAccessibile:
+          type: boolean
+          example: true
+        ingressoSenzaGradini:
+          type: boolean
+          example: true
+        parcheggioRiservato:
+          type: boolean
+          example: false
+ 
+    GetStrutturaResponse:
+      type: object
+      required:
+        - struttura
+      description: Risposta di `GET /structures/{id}`.
+      properties:
+        struttura:
+          $ref: '#/components/schemas/StrutturaPrivata'
+ 
+    UpdateStrutturaResponse:
+      type: object
+      required:
+        - message
+        - struttura
+      description: Risposta di `PATCH /structures/{id}/accessibilita`.
+      properties:
+        message:
+          type: string
+          example: Accessibilità aggiornata con successo
+        struttura:
+          $ref: '#/components/schemas/StrutturaPrivata'
+
 
     Error:
       type: object
