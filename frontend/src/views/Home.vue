@@ -20,7 +20,7 @@
         <FiltroCategoria v-model="categoriaSelezionata" />
       </div>
 
-      <Mappa ref="mappaRef" :categoria="categoriaSelezionata" @seleziona-segnalazione="onSelezionaSegnalazione" />
+      <Mappa ref="mappaRef" :categoria="categoriaSelezionata" @valida-segnalazione="onValidaSegnalazione" />
         <SearchRoute :mappa-ref="mappaRef" />
     </main>
 
@@ -86,7 +86,7 @@
     <FormSegnalazione v-model="isModalOpen" @submitted="onSegnalazioneSubmitted" />
     <FormSegnalazionePrivata v-model="isModalPrivataOpen" @submitted="onSegnalazioneSubmitted" />
 
-    <!-- modale di validazione, aperto al click su un marker di segnalazione privata -->
+    <!-- US10: modale di validazione, aperto dal bottone "Conferma" nel popup della mappa -->
     <PannelloValidazione
       v-model="isValidazioneOpen"
       :report="segnalazioneSelezionata"
@@ -118,18 +118,16 @@ const mappaRef = ref(null);
 
 const categoriaSelezionata = ref('');
 
-//stato del modale di validazione e segnalazione attualmente selezionata
+// US10: stato del modale di validazione e segnalazione selezionata dal popup mappa
 const isValidazioneOpen = ref(false);
 const segnalazioneSelezionata = ref(null);
 
-const onSelezionaSegnalazione = (seg) => {
-  // mostra il modale solo per le private (le pubbliche non si validano)
-  if (seg.tipo !== 'privata') return;
+const onValidaSegnalazione = (seg) => {
   segnalazioneSelezionata.value = seg;
   isValidazioneOpen.value = true;
 };
 
-//dopo una validazione riuscita: aggiorno il riferimento locale e ricarico la mappa
+// dopo una validazione riuscita: aggiorno il riferimento locale e ricarico la mappa
 const onValidated = ({ stato }) => {
   if (segnalazioneSelezionata.value) {
     segnalazioneSelezionata.value = { ...segnalazioneSelezionata.value, stato };

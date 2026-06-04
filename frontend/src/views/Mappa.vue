@@ -21,8 +21,9 @@ const props = defineProps({
   }
 });
 
-// la mappa NON gestisce la validazione: notifica solo il parent (Home) al click su un marker
-const emit = defineEmits(['seleziona-segnalazione']);
+// US10: al click sul bottone "Conferma" dentro il popup, la mappa notifica Home
+// che aprira il modale di validazione. La mappa resta responsabile solo della mappa.
+const emit = defineEmits(['valida-segnalazione']);
 
 // origine hardcoded in attesa della geolocalizzazione reale
 const ORIGIN_LATLNG = [46.0667, 11.1211];
@@ -90,7 +91,7 @@ async function caricaSegnalazioni() {
 
     if(scope === 'pubblica'){
       paramsPublic.set('categoria', categoriaValue);
-      chiamaPrivate = false; // nessuna privata puo corrispondere
+      chiamaPrivate = false; // nessuna privata può corrispondere
     } 
     else if(scope === 'privata'){
       paramsPrivate.set('categoria', categoriaValue);
@@ -131,9 +132,28 @@ async function caricaSegnalazioni() {
     segnalazioni.forEach(seg => {
       const [lng, lat] = seg.geolocalizzazione.coordinates;
 
-      // al click il marker NON apre un popup: notifica Home che mostrera il modale di validazione
-      const marker = L.marker([lat, lng], { icon: creaIconaCustom(seg.tipo) });
-      marker.on('click', () => emit('seleziona-segnalazione', seg));
+      // contenuto popup: come prima (categoria + descrizione).
+      // Per le PRIVATE aggiungo un badge di stato e un bottone "Conferma" che apre il modale.
+      let html = `<b>${seg.categoria}</b><br>${seg.descrizione}`;
+      if (seg.tipo === 'privata') {
+        const statoLabel = seg.stato === 'APERTA' ? 'Confermata' : 'In verifica';
+        const coloreStato = seg.stato === 'APERTA' ? '#059669' : '#d97706';
+        html += `<div style="margin-top:8px;font-size:11px;font-weight:700;color:${coloreStato}">${statoLabel}</div>`;
+        // data-id identifica la segnalazione al click del bottone
+        html += `<button type="button" class="btn-valida-popup" data-id="${seg._id}"
+          style="margin-top:8px;width:100%;padding:8px;border:none;border-radius:8px;
+          background:#10b981;color:#fff;font-weight:700;cursor:pointer">Conferma segnalazione</button>`;
+      }
+
+      const marker = L.marker([lat, lng], { icon: creaIconaCustom(seg.tipo) })
+        .bindPopup(html, {
+          className: 'popup-moderno',
+          closeButton: false,
+          maxWidth: 280
+        });
+
+      // conservo la segnalazione sul marker per recuperarla al click del bottone
+      marker._segnalazione = seg;
       marker.addTo(markersLayer);
     });
   } catch (err) {
@@ -206,10 +226,25 @@ onMounted(() => {
 
   //sfondo di openstreetmap
   L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png', {
-  attribution: 'copyright OpenStreetMap contributors, CARTO'
+  attribution: '© OpenStreetMap contributors, © CARTO'
   }).addTo(map);
 
   markersLayer = L.layerGroup().addTo(map);
+
+  //quando un popup si apre, se contiene il bottone "Conferma" gli aggancio
+  // il click. Il bottone vive nell'HTML del popup (Leaflet), quindi uso un listener
+  // DOM diretto: al click emetto verso Home la segnalazione del marker, che aprira il modale.
+  map.on('popupopen', (e) => {
+    const node = e.popup.getElement();
+    if (!node) return;
+    const btn = node.querySelector('.btn-valida-popup');
+    if (!btn) return;
+    const seg = e.popup._source && e.popup._source._segnalazione;
+    btn.addEventListener('click', () => {
+      map.closePopup();
+      if (seg) emit('valida-segnalazione', seg);
+    }, { once: true });
+  });
 
   originMarker = L.marker(ORIGIN_LATLNG, {
     icon: creaIconaOrigine(), interactive: false, zIndexOffset: 1000
