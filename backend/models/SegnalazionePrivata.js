@@ -21,35 +21,34 @@ const segnalazionePrivataSchema = new mongoose.Schema({
     //objectId che punta alla struttura (aggregazione)
     strutturaAssociata: {
         type: mongoose.Schema.Types.ObjectId,
-        ref: 'StrutturaPrivata', 
+        ref: 'StrutturaPrivata',
         required: [true, 'strutturaAssociata è obbligatoria per una segnalazione privata']
     },
-    //punteggio accumulato tramite crowdsourcing
+    //punteggio accumulato tramite crowdsourcing (somma degli scoreAffidabilita dei validatori)
     scoreAssociato: {
         type: Number,
         default: 0
     },
-    //soglia minima per rendere visibile la segnalazione
+    //soglia minima per validare la segnalazione
     sogliaValidazione: {
         type: Number,
-        default: 10     //default
+        default: 10
     },
-    //lista di chi ha supportato, per evitare voti doppi
+    //lista di chi ha supportato (mantenuta per riferimento; l'anti-doppio-voto è su collection 'validazioni')
     listaValidatori: [{
         type: mongoose.Schema.Types.ObjectId,
         ref: 'User'
     }],
-    //contatore per comportamenti anomali
+    //contatore per comportamenti anomali (US future)
     numAnomalie: {
         type: Number,
         default: 0
     },
-    //soglia per l'allarme al comune
     sogliaAllarme: {
         type: Number,
         default: 5
     },
-    //definisce se la segnalazione viene mostrata sulla mappa
+    //definisce se la segnalazione viene mostrata sulla mappa (derivabile da `stato`)
     visibile: {
         type: Boolean,
         default: false
@@ -57,24 +56,22 @@ const segnalazionePrivataSchema = new mongoose.Schema({
 });
 
 segnalazionePrivataSchema.pre('validate', function() {
-    //forza lo stato IN_VERIFICA se lo score non supera la soglia quando la segnalazione viene inserita
-    if (this.isNew || this.scoreAssociato < this.sogliaValidazione) {
-        if (this.stato === 'APERTA') {
-            this.stato = 'IN_VERIFICA';
-        }
+    //alla creazione una segnalazione privata nasce SEMPRE IN_VERIFICA (non ancora validata dal crowd)
+    if (this.isNew && (this.stato === 'APERTA' || this.stato == null)) {
+        this.stato = 'IN_VERIFICA';
     }
 
-    //se è in IN_VERIFICA non deve essere visibile
+
     if (this.stato === 'IN_VERIFICA') {
-        this.visibile = false;
+        this.visibile = true;
     }
 
-    //può essere APERTA solo se scoreAssociato >= sogliaValidazione
+    //può essere APERTA (validata) solo se scoreAssociato >= sogliaValidazione
     if (this.stato === 'APERTA') {
         if (this.scoreAssociato < this.sogliaValidazione) {
             this.invalidate('stato', 'La segnalazione privata non può essere APERTA finché non raggiunge la soglia di validazione');
         } else {
-            this.visibile = true; //diventa visibile
+            this.visibile = true;
         }
     }
 });
