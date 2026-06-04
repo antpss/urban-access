@@ -34,7 +34,6 @@
           </button>
         </div>
 
-        <!-- placeholder: lista strutture non ancora implementata (manca endpoint GET /structures) -->
         <div v-if="strutture.length === 0" class="border-2 border-dashed border-slate-200 rounded-xl p-10 text-center">
           <svg xmlns="http://www.w3.org/2000/svg" class="h-12 w-12 mx-auto text-slate-300 mb-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
@@ -45,15 +44,31 @@
 
         <ul v-else class="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
           <li v-for="s in strutture" :key="s._id"
-              class="bg-slate-50 border border-slate-100 rounded-xl p-5 hover:border-emerald-200 hover:bg-emerald-50/50 transition-all">
-            <p class="font-bold text-slate-800">{{ s.nome }}</p>
-            <p class="text-xs text-slate-400 capitalize mt-0.5">{{ s.categoria }}</p>
-            <p class="text-sm text-slate-500 mt-2">{{ s.indirizzo }}</p>
+              class="bg-slate-50 border border-slate-100 rounded-xl p-5 hover:border-emerald-200 hover:bg-emerald-50/50 transition-all flex flex-col">
+            <div class="flex items-start justify-between gap-2">
+              <div>
+                <p class="font-bold text-slate-800">{{ s.nome }}</p>
+                <p class="text-xs text-slate-400 capitalize mt-0.5">{{ s.categoria }}</p>
+              </div>
+              <!--badge accessibilità mostrato solo se la struttura è accessibile-->
+              <span v-if="s.accessibile"
+                    class="flex-none inline-flex items-center gap-1 text-[11px] font-bold text-emerald-700 bg-emerald-100 px-2 py-1 rounded-lg">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7" />
+                </svg>
+                Accessibile
+              </span>
+            </div>
+            <p class="text-sm text-slate-500 mt-2 flex-1">{{ s.indirizzo }}</p>
+            <!--pulsante che apre il form di autocertificazione per questa struttura -->
+            <button type="button" @click="apriAccessibilita(s)"
+                    class="mt-4 w-full py-2 text-sm font-bold rounded-lg text-emerald-600 bg-white border border-emerald-200 hover:bg-emerald-50 transition-colors">
+              Modifica accessibilità
+            </button>
           </li>
         </ul>
       </section>
 
-      <!-- sezione placeholder: gestione segnalazioni assegnate -->
       <section class="bg-white rounded-2xl shadow-sm border border-slate-100 p-8">
         <h2 class="text-2xl font-extrabold text-slate-800 tracking-tight">Segnalazioni sulle tue strutture</h2>
         <p class="text-sm text-slate-500 mt-1 mb-6">Visualizza e gestisci le segnalazioni che i cittadini hanno inserito sulle tue strutture.</p>
@@ -70,62 +85,84 @@
         <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 text-emerald-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
           <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
         </svg>
-        <span class="font-bold">Struttura registrata con successo!</span>
+        <span class="font-bold">{{ successMessage }}</span>
       </div>
     </transition>
 
     <FormStruttura v-model="isFormOpen" @submitted="onStrutturaSubmitted" />
+    <FormAccessibilita v-model="isAccessOpen" :struttura="strutturaSelezionata" @updated="onAccessibilitaUpdated" />
   </div>
 </template>
 
 <script setup>
-import { ref, onMounted } from 'vue'; 
+import { ref, onMounted } from 'vue';
 import { useRouter } from 'vue-router';
-import { getUser, clearSession, authFetch } from '../services/auth'; 
+import { getUser, clearSession, authFetch } from '../services/auth';
 import FormStruttura from './FormStruttura.vue';
+import FormAccessibilita from './FormAccessibilita.vue';
 
 const router = useRouter();
 const user = getUser();
 
 const isFormOpen = ref(false);
 const showSuccessBanner = ref(false);
+const successMessage = ref('Struttura registrata con successo!');
+
+//stato del modale accessibilità + struttura attualmente selezionata
+const isAccessOpen = ref(false);
+const strutturaSelezionata = ref(null);
 
 //stato della lista strutture
 const strutture = ref([]);
-const isLoading = ref(true);     //true al primo mount, finché la fetch non ritorna
-const loadError = ref('');       //messaggio errore se la fetch fallisce
+const isLoading = ref(true);
+const loadError = ref('');
 
 
-const fetchStrutture = async () =>{
-    isLoading.value = true;
-    loadError.value = '';
+const fetchStrutture = async () => {
+  isLoading.value = true;
+  loadError.value = '';
 
-    try{
-        if (!user?._id) {
-            throw new Error('Sessione utente non valida');
-        }
-        const res = await authFetch(`/api/v1/structures?proprietario=${user._id}`);
-        if (!res.ok) {
-            //prova a estrarre il messaggio di errore dal body
-            const data = await res.json().catch(() => ({}));
-            throw new Error(data.error || `Errore ${res.status}`);
-        }
-        const data = await res.json();
-        strutture.value = data.strutture || [];
-
-    } catch (e){
-
-        loadError.value = e.message === 'Failed to fetch'
-            ? 'Server non raggiungibile.'
-            : e.message;
-    } finally{
-        isLoading.value = false;
+  try {
+    if (!user?._id) {
+      throw new Error('Sessione utente non valida');
     }
+    const res = await authFetch(`/api/v1/structures?proprietario=${user._id}`);
+    if (!res.ok) {
+      const data = await res.json().catch(() => ({}));
+      throw new Error(data.error || `Errore ${res.status}`);
+    }
+    const data = await res.json();
+    strutture.value = data.strutture || [];
+
+  } catch (e) {
+    loadError.value = e.message === 'Failed to fetch'
+      ? 'Server non raggiungibile.'
+      : e.message;
+  } finally {
+    isLoading.value = false;
+  }
 };
 
 
 const onStrutturaSubmitted = (nuovaStruttura) => {
   if (nuovaStruttura) strutture.value.unshift(nuovaStruttura);
+  successMessage.value = 'Struttura registrata con successo!';
+  showSuccessBanner.value = true;
+  setTimeout(() => { showSuccessBanner.value = false; }, 4000);
+};
+
+
+const apriAccessibilita = (s) => {
+  strutturaSelezionata.value = s;
+  isAccessOpen.value = true;
+};
+
+
+const onAccessibilitaUpdated = (strutturaAggiornata) => {
+  if (!strutturaAggiornata) return;
+  const i = strutture.value.findIndex(s => s._id === strutturaAggiornata._id);
+  if (i !== -1) strutture.value[i] = strutturaAggiornata;
+  successMessage.value = 'Accessibilità aggiornata!';
   showSuccessBanner.value = true;
   setTimeout(() => { showSuccessBanner.value = false; }, 4000);
 };
