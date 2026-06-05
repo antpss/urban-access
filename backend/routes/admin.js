@@ -11,4 +11,20 @@ router.get('/heatmap',
     adminController.getHeatmap
 );
 
+// GET /api/v1/admin/reports
+//dashboard segnalazioni pubbliche (lista filtrabile, ordinata, paginata)
+router.get('/reports',
+    verifyToken,
+    requireRole('operatore'),
+    adminController.getReportsDashboard
+);
+
+// PATCH /api/v1/admin/reports/:id/presa-in-carico
+//operatore prende in carico una segnalazione pubblica APERTA
+router.patch('/reports/:id/presa-in-carico',
+    verifyToken,
+    requireRole('operatore'),
+    adminController.presaInCarico
+);
+
 module.exports = router;

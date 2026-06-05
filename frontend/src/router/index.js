@@ -5,6 +5,7 @@ import SelectDisability from '../views/SelectDisability.vue';
 import Home from '../views/Home.vue';
 import HomeProprietario from '../views/HomeProprietario.vue';
 import HomeOperatore from '../views/HomeOperatore.vue';
+import AdminReports from '../views/AdminReports.vue';
 import Profilo from '../views/Profilo.vue';
 import { isAuthenticated, getUser } from '../services/auth';
 
@@ -45,6 +46,13 @@ const routes = [
         path: '/home/operatore',
         name: 'HomeOperatore',
         component: HomeOperatore,
+        meta: { requiresAuth: true, role: 'operatore' }
+    },
+    {
+        //dashboard segnalazioni pubbliche aperte
+        path: '/home/operatore/reports',
+        name: 'AdminReports',
+        component: AdminReports,
         meta: { requiresAuth: true, role: 'operatore' }
     },
     {

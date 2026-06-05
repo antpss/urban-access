@@ -72,7 +72,7 @@
 
       <div v-if="loadingRoute" class="flex-1 flex flex-col items-center justify-center gap-3 p-6">
         <div class="h-8 w-8 border-3 border-slate-200 border-t-emerald-500 rounded-full animate-spin"></div>
-        <p class="text-sm text-slate-400 font-medium">Calcolo del percorso…</p>
+        <p class="text-sm text-slate-400 font-medium">Calcolo del percorso...</p>
       </div>
 
       <div v-else-if="routeError" class="flex-1 flex flex-col items-center justify-center gap-3 p-6 text-center">
@@ -81,6 +81,7 @@
         </svg>
         <p class="text-sm text-slate-600 font-medium">{{ routeError }}</p>
       </div>
+
       <template v-else-if="route">
         <div v-if="phase === 'result'" class="p-6 space-y-5 flex-1 overflow-y-auto">
           <div class="flex gap-4">
@@ -99,6 +100,31 @@
             </svg>
             <span>Percorso a piedi</span>
           </div>
+
+          <div
+            v-if="ostacoliEsclusi.length > 0"
+            class="rounded-xl border border-orange-200 bg-orange-50 p-4 space-y-2"
+          >
+            <div class="flex items-center gap-2">
+              <span class="text-base font-bold text-orange-600">Ostacoli esclusi</span>
+              <span class="text-xs font-bold bg-orange-200 text-orange-800 rounded-full px-2 py-0.5">{{ ostacoliEsclusi.length }}</span>
+            </div>
+            <p class="text-xs text-orange-700 leading-relaxed">
+              Il percorso evita automaticamente barriere incompatibili con il tuo profilo.
+            </p>
+            <ul class="space-y-1 mt-1">
+              <li
+                v-for="(o, idx) in ostacoliEsclusi"
+                :key="idx"
+                class="flex items-center gap-2 text-xs text-orange-800"
+              >
+                <span class="w-1.5 h-1.5 rounded-full bg-orange-400 shrink-0"></span>
+                <span class="capitalize">{{ o.categoria.replaceAll('_', ' ') }}</span>
+                <span class="text-orange-400">({{ o.tipo }})</span>
+              </li>
+            </ul>
+          </div>
+
         </div>
 
         <div v-else class="p-6 flex-1 overflow-y-auto">
@@ -233,10 +259,10 @@ function reset() {
   props.mappaRef?.resetView();
 }
 
-const distanceText = computed(() => route.value ? formatDistance(route.value.distance) : '');
-const durationText = computed(() => route.value ? formatDuration(route.value.duration) : '');
-
-const maneuvers = computed(() => route.value?.maneuvers || []);
+const distanceText    = computed(() => route.value ? formatDistance(route.value.distance) : '');
+const durationText    = computed(() => route.value ? formatDuration(route.value.duration) : '');
+const maneuvers       = computed(() => route.value?.maneuvers || []);
+const ostacoliEsclusi = computed(() => route.value?.ostacoli_esclusi ?? []);
 </script>
 
 <style scoped>

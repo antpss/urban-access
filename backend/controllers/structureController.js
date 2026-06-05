@@ -192,3 +192,123 @@ exports.getStructures = async (req, res) =>{
     }
 };
 
+//GET /api/v1/structures/:id
+exports.getStructureById = async (req, res) => {
+    try {
+        const { id } = req.params;
+
+        //valido il formato PRIMA della query
+        if (!HEX24.test(id)) {
+            return res.status(400).json({
+                error: 'Validazione fallita',
+                details: [{ field: 'id', message: 'ObjectId non valido' }]
+            });
+        }
+
+        const struttura = await StrutturaPrivata.findById(id);
+        if (!struttura) {
+            return res.status(404).json({ error: 'Struttura non trovata' });
+        }
+
+        //mostro proprietario solo se è lui stesso a chiedere altrimenti lo nascondo
+        const obj = sanitizeStruttura(struttura);
+        if (struttura.proprietario.toString() !== req.loggedUser.userId) {
+            delete obj.proprietario;
+        }
+
+        return res.status(200).json({ struttura: obj });
+
+    } catch (err) {
+        console.error('[GET /structures/:id]', err);
+        return res.status(500).json({ error: 'Errore interno del server' });
+    }
+};
+
+
+//campi di accessibilità ammessi nel body 
+const CAMPI_ACCESSIBILITA = [
+    'rampa', 'ascensore', 'bagnoAccessibile',
+    'ingressoSenzaGradini', 'parcheggioRiservato'
+];
+
+//PATCH /api/v1/structures/:id/accessibility
+exports.updateAccessibility = async (req, res) =>{
+    try {
+        const { id } = req.params;
+        const body = req.body || {};
+
+        if (!HEX24.test(id)) {
+            return res.status(400).json({
+                error: 'Validazione fallita',
+                details: [{ field: 'id', message: 'ObjectId non valido' }]
+            });
+        }
+
+        //tengo solo i campi in whitelist tutto il resto  viene scartato
+        const details = [];
+        const campiDaApplicare = {};
+        for (const campo of CAMPI_ACCESSIBILITA) {
+
+            if (Object.prototype.hasOwnProperty.call(body, campo)){
+                if (typeof body[campo] !== 'boolean') {
+                    details.push({ field: campo, message: 'deve essere un valore booleano' });
+                } else {
+                    campiDaApplicare[campo] = body[campo];
+                }
+            }
+        }
+
+        if (details.length > 0){
+            return res.status(400).json({ error: 'Validazione fallita', details });
+        }
+
+        //almeno un campo valido deve essere presente
+        if (Object.keys(campiDaApplicare).length === 0) {
+            return res.status(400).json({
+                error: 'Validazione fallita',
+                details: [{ field: 'body', message: 'nessun campo di accessibilità valido presente' }]
+            });
+        }
+
+
+        const struttura = await StrutturaPrivata.findById(id);
+        if (!struttura) {
+            return res.status(404).json({ error: 'Struttura non trovata' });
+        }
+
+
+        //qui si verifica che sia il proprietario di questa struttura
+        if (struttura.proprietario.toString() !== req.loggedUser.userId) {
+            return res.status(403).json({
+                error: 'Accesso negato. Puoi modificare solo le tue strutture.'
+            });
+        }
+
+        //applico solo i campi passati; quelli non presenti restano invariati
+        for (const campo of Object.keys(campiDaApplicare)) {
+            struttura.accessibilita[campo] = campiDaApplicare[campo];
+        }
+
+        //save() triggera l'hook pre('save') che ricalcola 'accessibile'
+        await struttura.save();
+
+        console.log(`Accessibilità aggiornata: ${struttura._id} -> accessibile=${struttura.accessibile}`);
+
+        return res.status(200).json({
+            message: 'Accessibilità aggiornata con successo',
+            struttura: sanitizeStruttura(struttura)
+        });
+
+    } catch (err) {
+
+        console.error('[PATCH /structures/:id/accessibility]', err);
+        if (err.name === 'ValidationError') {
+            const details = Object.values(err.errors).map(e => ({
+                field: e.path,
+                message: e.message
+            }));
+            return res.status(400).json({ error: 'Validazione fallita', details });
+        }
+        return res.status(500).json({ error: 'Errore interno del server' });
+    }
+};

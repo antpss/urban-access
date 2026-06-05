@@ -258,3 +258,256 @@ describe('GET /api/v1/structures - US7 Lista Strutture con filtri', () => {
         expect(findSpy).not.toHaveBeenCalled();
     });
 });
+
+
+
+//US15 Autocertificazione accessibilità
+//GET /api/v1/structures/:id
+//PATCH /api/v1/structures/:id/accessibility
+
+
+//finto documento StrutturaPrivata
+const fakeStrutturaDoc = (overrides = {}) =>{
+    const doc = {
+        _id: FAKE_STRUCTURE_ID,
+        nome: 'Bar Centrale',
+        categoria: 'bar',
+        indirizzo: 'Via Belenzani 14, 38122 Trento TN',
+        geolocalizzazione: { type: 'Point', coordinates: [11.1217, 46.0667] },
+        proprietario: { toString: () => OWNER_ID },
+        accessibilita: {
+            rampa: false,
+            ascensore: false,
+            bagnoAccessibile: false,
+            ingressoSenzaGradini: false,
+            parcheggioRiservato: false
+        },
+        accessibile: false,
+        createdAt: new Date('2026-05-15T10:00:00.000Z'),
+        updatedAt: new Date('2026-05-16T09:00:00.000Z'),
+        __v: 0,
+        ...overrides
+    };
+    doc.save = jest.fn().mockImplementation(function (){
+        const a = doc.accessibilita || {};
+        const n = [a.rampa, a.ascensore, a.bagnoAccessibile, a.ingressoSenzaGradini, a.parcheggioRiservato]
+            .filter(Boolean).length;
+        doc.accessibile = n >= 3;
+        return Promise.resolve(doc);
+    });
+
+
+    doc.toObject = function () {
+        const { save, toObject, ...plain } = doc;
+        return { ...plain, proprietario: OWNER_ID };
+    };
+    return doc;
+};
+
+
+describe('GET /api/v1/structures/:id - US15 lettura singola struttura', () => {
+
+    const tokenAltroProprietario = jwt.sign(
+        { userId: OTHER_OWNER_ID, ruolo: 'proprietario' },
+        process.env.JWT_SECRET,
+        { expiresIn: '2h' }
+    );
+
+    let findByIdSpy;
+    afterEach(() => { if (findByIdSpy) findByIdSpy.mockRestore(); });
+
+    test('200: struttura trovata, proprietario incluso se è lui a chiedere', async () => {
+        findByIdSpy = jest.spyOn(StrutturaPrivata, 'findById')
+            .mockResolvedValue(fakeStrutturaDoc({ accessibile: true }));
+
+        const res = await request(app)
+            .get(`/api/v1/structures/${FAKE_STRUCTURE_ID}`)
+            .set('Authorization', `Bearer ${tokenProprietario}`);
+
+        expect(res.status).toBe(200);
+        expect(res.body.struttura).toMatchObject({ _id: FAKE_STRUCTURE_ID, nome: 'Bar Centrale' });
+        expect(res.body.struttura.proprietario).toBe(OWNER_ID);
+        expect(findByIdSpy).toHaveBeenCalledWith(FAKE_STRUCTURE_ID);
+    });
+
+    test('200: campo proprietario OMESSO se a chiedere è un altro utente', async () => {
+        findByIdSpy = jest.spyOn(StrutturaPrivata, 'findById')
+            .mockResolvedValue(fakeStrutturaDoc());
+
+        const res = await request(app)
+            .get(`/api/v1/structures/${FAKE_STRUCTURE_ID}`)
+            .set('Authorization', `Bearer ${tokenCittadino}`);
+
+        expect(res.status).toBe(200);
+        expect(res.body.struttura.proprietario).toBeUndefined();
+        expect(res.body.struttura.accessibilita).toBeDefined();
+    });
+
+    test('400: id non valido. findById mai chiamato', async () => {
+        findByIdSpy = jest.spyOn(StrutturaPrivata, 'findById');
+
+        const res = await request(app)
+            .get('/api/v1/structures/non-un-objectid')
+            .set('Authorization', `Bearer ${tokenProprietario}`);
+
+        expect(res.status).toBe(400);
+        expect(res.body.details[0]).toMatchObject({ field: 'id' });
+        expect(findByIdSpy).not.toHaveBeenCalled();
+    });
+
+    test('404: struttura inesistente', async () =>{
+        findByIdSpy = jest.spyOn(StrutturaPrivata, 'findById').mockResolvedValue(null);
+
+        const res = await request(app)
+            .get(`/api/v1/structures/${FAKE_STRUCTURE_ID}`)
+            .set('Authorization', `Bearer ${tokenProprietario}`);
+
+        expect(res.status).toBe(404);
+        expect(res.body.error).toBe('Struttura non trovata');
+    });
+
+    test('401: token mancante. findById mai chiamato', async () => {
+        findByIdSpy = jest.spyOn(StrutturaPrivata, 'findById');
+
+        const res = await request(app).get(`/api/v1/structures/${FAKE_STRUCTURE_ID}`);
+
+        expect(res.status).toBe(401);
+        expect(findByIdSpy).not.toHaveBeenCalled();
+    });
+});
+
+
+describe('PATCH /api/v1/structures/:id/accessibility - US15 autocertificazione', () => {
+
+    const tokenAltroProprietario = jwt.sign(
+        { userId: OTHER_OWNER_ID, ruolo: 'proprietario' },
+        process.env.JWT_SECRET,
+        { expiresIn: '2h' }
+    );
+
+    let findByIdSpy;
+    afterEach(() =>{ if (findByIdSpy) findByIdSpy.mockRestore(); });
+
+    test('200: proprietario aggiorna i parametri; badge NON attivo con 2 voci true', async () => {
+        const doc = fakeStrutturaDoc();
+        findByIdSpy = jest.spyOn(StrutturaPrivata, 'findById').mockResolvedValue(doc);
+
+        const res = await request(app)
+            .patch(`/api/v1/structures/${FAKE_STRUCTURE_ID}/accessibility`)
+            .set('Authorization', `Bearer ${tokenProprietario}`)
+            .send({ rampa: true, ascensore: true }); //2 sotto soglia
+
+        expect(res.status).toBe(200);
+        expect(res.body.message).toBe('Accessibilità aggiornata con successo');
+        expect(res.body.struttura.accessibilita.rampa).toBe(true);
+        expect(res.body.struttura.accessibile).toBe(false);
+        expect(doc.save).toHaveBeenCalled();
+    });
+
+    test('200: con 3 parametri true il badge diventa true (soglia raggiunta)', async () => {
+        const doc = fakeStrutturaDoc();
+        findByIdSpy = jest.spyOn(StrutturaPrivata, 'findById').mockResolvedValue(doc);
+
+        const res = await request(app)
+            .patch(`/api/v1/structures/${FAKE_STRUCTURE_ID}/accessibility`)
+            .set('Authorization', `Bearer ${tokenProprietario}`)
+            .send({ rampa: true, bagnoAccessibile: true, ingressoSenzaGradini: true });
+
+        expect(res.status).toBe(200);
+        expect(res.body.struttura.accessibile).toBe(true);
+    });
+
+    test('200: il campo accessibile nel body viene IGNORATO (derivato server-side)', async () =>{
+        const doc = fakeStrutturaDoc();
+        findByIdSpy = jest.spyOn(StrutturaPrivata, 'findById').mockResolvedValue(doc);
+
+        const res = await request(app)
+            .patch(`/api/v1/structures/${FAKE_STRUCTURE_ID}/accessibility`)
+            .set('Authorization', `Bearer ${tokenProprietario}`)
+            .send({ accessibile: true, rampa: true }); //tenta di forzare il badge
+
+        expect(res.status).toBe(200);
+        //1 solo parametro reale badge resta false
+        expect(res.body.struttura.accessibile).toBe(false);
+    });
+
+    test('403: un proprietario NON può modificare la struttura di un altro (ownership)', async () =>{
+        const doc = fakeStrutturaDoc(); //proprietario = OWNER_ID
+        findByIdSpy = jest.spyOn(StrutturaPrivata, 'findById').mockResolvedValue(doc);
+
+        const res = await request(app)
+            .patch(`/api/v1/structures/${FAKE_STRUCTURE_ID}/accessibility`)
+            .set('Authorization', `Bearer ${tokenAltroProprietario}`)
+            .send({ rampa: true });
+
+        expect(res.status).toBe(403);
+        expect(res.body.error).toContain('Accesso negato');
+        expect(doc.save).not.toHaveBeenCalled();
+    });
+
+    test('403: un cittadino è bloccato dal middleware. findById mai chiamato', async () =>{
+        findByIdSpy = jest.spyOn(StrutturaPrivata, 'findById');
+
+        const res = await request(app)
+            .patch(`/api/v1/structures/${FAKE_STRUCTURE_ID}/accessibility`)
+            .set('Authorization', `Bearer ${tokenCittadino}`)
+            .send({ rampa: true });
+
+        expect(res.status).toBe(403);
+        expect(res.body.error).toBe('Accesso negato: ruolo non autorizzato');
+        expect(findByIdSpy).not.toHaveBeenCalled();
+    });
+
+    test('400: parametro non booleano. findById mai chiamato', async () => {
+        findByIdSpy = jest.spyOn(StrutturaPrivata, 'findById');
+
+        const res = await request(app)
+            .patch(`/api/v1/structures/${FAKE_STRUCTURE_ID}/accessibility`)
+            .set('Authorization', `Bearer ${tokenProprietario}`)
+            .send({ rampa: 'si' });
+
+        expect(res.status).toBe(400);
+        expect(res.body.details).toContainEqual({
+            field: 'rampa',
+            message: 'deve essere un valore booleano'
+        });
+        expect(findByIdSpy).not.toHaveBeenCalled();
+    });
+
+    test('400: nessun campo di accessibilità valido nel body', async () => {
+        findByIdSpy = jest.spyOn(StrutturaPrivata, 'findById');
+
+        const res = await request(app)
+            .patch(`/api/v1/structures/${FAKE_STRUCTURE_ID}/accessibility`)
+            .set('Authorization', `Bearer ${tokenProprietario}`)
+            .send({ campoInventato: true });
+
+        expect(res.status).toBe(400);
+        expect(res.body.details[0]).toMatchObject({ field: 'body' });
+        expect(findByIdSpy).not.toHaveBeenCalled();
+    });
+
+    test('404: struttura inesistente', async () => {
+        findByIdSpy = jest.spyOn(StrutturaPrivata, 'findById').mockResolvedValue(null);
+
+        const res = await request(app)
+            .patch(`/api/v1/structures/${FAKE_STRUCTURE_ID}/accessibility`)
+            .set('Authorization', `Bearer ${tokenProprietario}`)
+            .send({ rampa: true });
+
+        expect(res.status).toBe(404);
+        expect(res.body.error).toBe('Struttura non trovata');
+    });
+
+    test('401: token mancante. findById mai chiamato', async () =>{
+        findByIdSpy = jest.spyOn(StrutturaPrivata, 'findById');
+
+        const res = await request(app)
+            .patch(`/api/v1/structures/${FAKE_STRUCTURE_ID}/accessibility`)
+            .send({ rampa: true });
+
+        expect(res.status).toBe(401);
+        expect(res.body.error).toBe('Token mancante');
+        expect(findByIdSpy).not.toHaveBeenCalled();
+    });
+});

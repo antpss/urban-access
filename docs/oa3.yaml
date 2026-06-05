@@ -1111,6 +1111,211 @@ paths:
         '500':
           description: Errore interno del server.
 
+
+  /structures/{id}:
+    get:
+      tags:
+        - Strutture
+      summary: Recupera una singola struttura per id
+      description: |
+        Restituisce la rappresentazione completa di una struttura, incluso il
+        sottodocumento `accessibilita` e il badge derivato `accessibile`.
+ 
+        Endpoint di sola lettura. Accessibile a qualsiasi utente autenticato:
+        i dati di accessibilità di una struttura sono informazione pubblica
+        (è il loro scopo — mostrare il badge ai clienti).
+ 
+        **Visibilità del campo `proprietario`:** incluso solo se il chiamante
+        è il proprietario della struttura, altrimenti omesso per privacy
+        (stessa logica di `GET /structures`).
+      operationId: getStrutturaById
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: ObjectId della struttura.
+          schema:
+            type: string
+            pattern: '^[a-fA-F0-9]{24}$'
+          example: 65b4f4e7b8d9c1f4a2e5b6a9
+      responses:
+        '200':
+          description: Struttura trovata.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GetStrutturaResponse'
+              example:
+                struttura:
+                  _id: 65b4f4e7b8d9c1f4a2e5b6a9
+                  nome: Bar Centrale
+                  categoria: bar
+                  indirizzo: Via Belenzani 14, 38122 Trento TN
+                  geolocalizzazione:
+                    type: Point
+                    coordinates: [11.1217, 46.0667]
+                  accessibilita:
+                    rampa: true
+                    ascensore: false
+                    bagnoAccessibile: true
+                    ingressoSenzaGradini: true
+                    parcheggioRiservato: false
+                  accessibile: true
+                  createdAt: '2026-05-15T10:00:00.000Z'
+                  updatedAt: '2026-05-16T09:00:00.000Z'
+        '400':
+          description: id non è un ObjectId valido (24 hex).
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ValidationError'
+              example:
+                error: Validazione fallita
+                details:
+                  - field: id
+                    message: ObjectId non valido
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          description: Struttura non trovata.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                error: Struttura non trovata
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+ 
+  /structures/{id}/accessibility:
+    patch:
+      tags:
+        - Strutture
+      summary: Compila/aggiorna l'autocertificazione di accessibilità di una struttura
+      description: |
+        Permette al **proprietario della struttura** di autocertificare i
+        parametri di accessibilità (rampa, ascensore, bagno accessibile, ecc.).
+ 
+        ## Semantica PATCH parziale
+        Il body contiene solo i parametri da modificare. I parametri non
+        presenti restano invariati. Ogni parametro è un booleano.
+ 
+        ## Badge derivato (NON scrivibile dal client)
+        Il campo `accessibile` **non** è accettato nel body: è calcolato
+        server-side. Regola corrente: la struttura è `accessibile = true` se
+        **almeno 3** parametri di accessibilità risultano `true`. La soglia è
+        una decisione di dominio implementata nel modello, non nel client; il
+        client riceve sempre il valore autoritativo nella risposta.
+ 
+        ## Autorizzazione (duplice controllo)
+        - **Ruolo:** solo `proprietario` (middleware `requireRole`).
+        - **Ownership:** l'`id` della struttura deve appartenere al proprietario
+          autenticato (`struttura.proprietario === JWT.userId`). Un proprietario
+          NON può modificare l'accessibilità di una struttura altrui → `403`.
+          Il controllo di solo ruolo non basta: distingue i proprietari dai
+          cittadini, ma non un proprietario dall'altro.
+ 
+        ## Comportamento server-side
+        - L'`id` viene validato come ObjectId (24 hex) prima della query.
+        - Solo i campi presenti nella whitelist di `accessibilita` vengono
+          applicati; campi sconosciuti o `accessibile` nel body sono ignorati.
+        - Dopo l'applicazione, un hook Mongoose ricalcola `accessibile`.
+      operationId: aggiornaAccessibilitaStruttura
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: ObjectId della struttura da aggiornare.
+          schema:
+            type: string
+            pattern: '^[a-fA-F0-9]{24}$'
+          example: 65b4f4e7b8d9c1f4a2e5b6a9
+      requestBody:
+        required: true
+        description: |
+          Sottoinsieme dei parametri di accessibilità da modificare.
+          Deve contenere almeno un campo valido.
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateAccessibilityRequest'
+            example:
+              rampa: true
+              bagnoAccessibile: true
+              ingressoSenzaGradini: true
+      responses:
+        '200':
+          description: |
+            Accessibilità aggiornata. Ritorna la struttura completa con il
+            badge `accessibile` ricalcolato.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UpdateStrutturaResponse'
+              example:
+                message: Accessibilità aggiornata con successo
+                struttura:
+                  _id: 65b4f4e7b8d9c1f4a2e5b6a9
+                  nome: Bar Centrale
+                  categoria: bar
+                  indirizzo: Via Belenzani 14, 38122 Trento TN
+                  geolocalizzazione:
+                    type: Point
+                    coordinates: [11.1217, 46.0667]
+                  accessibilita:
+                    rampa: true
+                    ascensore: false
+                    bagnoAccessibile: true
+                    ingressoSenzaGradini: true
+                    parcheggioRiservato: false
+                  accessibile: true
+                  proprietario: 65a3f4e7b8d9c1f4a2e5b6c8
+                  createdAt: '2026-05-15T10:00:00.000Z'
+                  updatedAt: '2026-05-16T09:00:00.000Z'
+        '400':
+          description: |
+            Input non valido. Possibili cause:
+            - `id` non è un ObjectId valido (24 hex)
+            - nessun campo di accessibilità valido presente nel body
+            - un parametro non è di tipo booleano
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ValidationError'
+              example:
+                error: Validazione fallita
+                details:
+                  - field: rampa
+                    message: deve essere un valore booleano
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          description: |
+            Accesso negato. Possibili cause:
+            - ruolo diverso da `proprietario`
+            - la struttura non appartiene al proprietario autenticato
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                error: Accesso negato. Puoi modificare solo le tue strutture.
+        '404':
+          description: Struttura non trovata.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                error: Struttura non trovata
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+
   /geocode:
       get:
         tags:
@@ -1206,10 +1411,51 @@ paths:
         (array di coordinate `[lng, lat]`), pronta per il rendering su mappa, più
         distanza in metri e durata stimata in secondi.
 
+        Quando il filtro profilo è attivo, la risposta include anche l'array
+        `ostacoli_esclusi` con i punti che Valhalla ha ricevuto come
+        `exclude_locations` utile al client per mostrare un indicatore visivo
+        degli ostacoli bypassati sul tracciato.
+
         ## Natura stateless
         Il percorso NON viene persistito: è un dato derivato e deperibile, funzione
         dello stato corrente della rete. Ogni chiamata ricalcola il tragitto.
         L'operazione è idempotente e priva di side-effect.
+
+        ## Filtro profilo disabilità (US11)
+        Se l'utente autenticato è un `cittadino` con `profiloDisabilita` non vuoto,
+        il sistema recupera automaticamente le segnalazioni attive incompatibili con
+        il suo profilo nell'area del percorso e le passa a Valhalla come
+        `exclude_locations`, così da ricalcolare il tragitto evitando quegli archi.
+
+        **Il profilo viene sempre letto dal JWT** non è un parametro client.
+        Un cittadino non può simulare un profilo diverso dal proprio.
+
+        **Definizione di «segnalazione attiva»:**
+        - `stato ∈ {APERTA, IN_VERIFICA, PRESA_IN_CARICO}` escluse RISOLTA e ARCHIVIATA
+        - Per le segnalazioni private: anche `visibile: true` (solo quelle validate dalla community)
+
+        **Mapping categoria → profilo incompatibile:**
+
+        | Categoria                  | Profili bloccati                               |
+        |----------------------------|------------------------------------------------|
+        | marciapiede_rotto          | sediaARotelle, ausilioDeambulazione            |
+        | pavimentazione_dissestata  | sediaARotelle, ausilioDeambulazione            |
+        | scalino_non_segnalato      | sediaARotelle, ausilioDeambulazione, cecita    |
+        | mancanza_rampa (pubblica)  | sediaARotelle, ausilioDeambulazione            |
+        | ostacolo_temporaneo        | sediaARotelle, cecita                          |
+        | auto_sosta_vietata         | sediaARotelle, cecita                          |
+        | semaforo_non_accessibile   | cecita                                         |
+        | mancanza_rampa (privata)   | sediaARotelle, ausilioDeambulazione            |
+        | ascensore_guasto           | sediaARotelle, ausilioDeambulazione            |
+        | spazi_interni_stretti      | sediaARotelle                                  |
+        | altro                      | (nessuno — troppo generico per bloccare)       |
+
+        `sordita` non è bloccata da nessuna categoria: non genera barriere
+        fisiche al transito pedonale.
+
+        Se `profiloDisabilita` è `[]` o l'utente non è un `cittadino`, nessun
+        filtro viene applicato e il comportamento è identico alla versione
+        pre-US11 (nessuna `exclude_locations` passata a Valhalla).
 
         ## Distinzione degli errori
         - **`422`**: la destinazione è una coordinata valida ma **non raggiungibile
@@ -1234,27 +1480,62 @@ paths:
           example: "11.1214267,46.0673519"
       responses:
         '200':
-          description: Percorso pedonale calcolato con successo.
+          description: |
+            Percorso pedonale calcolato con successo.
+            Se il filtro profilo è attivo, `ostacoli_esclusi` contiene i punti
+            passati a Valhalla come `exclude_locations`; altrimenti è un array vuoto.
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/RouteResponse'
-              example:
-                origin:
-                  lng: 11.1211
-                  lat: 46.0667
-                destination:
-                  lng: 11.1214267
-                  lat: 46.0673519
-                geometry:
-                  type: LineString
-                  coordinates:
-                    - [11.121115, 46.066743]
-                    - [11.121054, 46.066753]
-                    - [11.121305, 46.0673]
-                    - [11.121298, 46.067342]
-                distance: 79
-                duration: 56
+              examples:
+                senza_filtro:
+                  summary: Utente senza profilo disabilità (nessun filtro)
+                  value:
+                    origin:
+                      lng: 11.1211
+                      lat: 46.0667
+                    destination:
+                      lng: 11.1214267
+                      lat: 46.0673519
+                    geometry:
+                      type: LineString
+                      coordinates:
+                        - [11.121115, 46.066743]
+                        - [11.121054, 46.066753]
+                        - [11.121305, 46.0673]
+                        - [11.121298, 46.067342]
+                    distance: 79
+                    duration: 56
+                    ostacoli_esclusi: []
+                con_filtro:
+                  summary: Cittadino con sediaARotelle (2 ostacoli esclusi)
+                  value:
+                    origin:
+                      lng: 11.1211
+                      lat: 46.0667
+                    destination:
+                      lng: 11.1214267
+                      lat: 46.0673519
+                    geometry:
+                      type: LineString
+                      coordinates:
+                        - [11.121115, 46.066743]
+                        - [11.120890, 46.066910]
+                        - [11.121298, 46.067342]
+                    distance: 134
+                    duration: 96
+                    ostacoli_esclusi:
+                      - segnalazioneId: 65b1a2c3d4e5f6a7b8c9d0e1
+                        categoria: mancanza_rampa
+                        tipo: pubblica
+                        lng: 11.121054
+                        lat: 46.066753
+                      - segnalazioneId: 65b1a2c3d4e5f6a7b8c9d0e2
+                        categoria: marciapiede_rotto
+                        tipo: pubblica
+                        lng: 11.121170
+                        lat: 46.066820
         '400':
           $ref: '#/components/responses/ValidationError'
         '401':
@@ -1265,12 +1546,23 @@ paths:
             valida ma non esiste alcun percorso pedonale: punto isolato dalla rete
             stradale, fuori dall'area coperta dai dati cartografici, oppure tragitto
             oltre la distanza massima pedonale.
+
+            **Nota:** può verificarsi anche quando il filtro profilo esclude così
+            tanti archi da rendere irraggiungibile la destinazione. In questo caso
+            il messaggio di errore lo segnala esplicitamente.
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/Error'
-              example:
-                error: Nessun percorso pedonale raggiungibile verso la destinazione indicata
+              examples:
+                destinazione_irraggiungibile:
+                  value:
+                    error: Nessun percorso pedonale raggiungibile verso la destinazione indicata
+                irraggiungibile_per_filtro:
+                  value:
+                    error: >-
+                      Nessun percorso disponibile compatibile con il profilo disabilità.
+                      Prova a disabilitare il filtro o a scegliere una destinazione alternativa.
         '502':
           description: |
             Il motore di routing (Valhalla) è irraggiungibile o ha restituito un
@@ -1383,6 +1675,253 @@ paths:
           $ref: '#/components/responses/Unauthorized'
         '403':
           $ref: '#/components/responses/Forbidden'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /admin/reports:
+    get:
+      tags:
+        - Admin
+      summary: Dashboard segnalazioni pubbliche (lista filtrabile, ordinata e paginata)
+      operationId: getReportsDashboard
+      description: |
+        Restituisce l'elenco **paginato** delle segnalazioni **pubbliche** per
+        la dashboard operativa del Comune, pensata per la pianificazione della
+        manutenzione (US20).
+
+        Riservato agli operatori comunali (ruolo `operatore`).
+
+        A differenza di `GET /publicReports` (lettura pubblica, non paginata),
+        questo endpoint aggiunge **filtro temporale** (`from`/`to` su
+        `createdAt`), **ordinamento** configurabile (`orderBy`/`order`) e
+        **paginazione** (`page`/`limit`), funzioni necessarie a gestire
+        volumi di dati elevati in un pannello operativo.
+
+        **Scope dati:** vengono restituite esclusivamente le segnalazioni di
+        tipo `pubblica`. Il filtro è forzato server-side e non è
+        sovrascrivibile dal client.
+
+        **Filtro stato:** se omesso, restituisce le segnalazioni in stati
+        "lavorabili" dal punto di vista operativo, ovvero `APERTA` e
+        `PRESA_IN_CARICO`. Lo stato `IN_VERIFICA` è escluso perché riservato
+        alle private in validazione crowd (vincolo OCL: una pubblica non è mai
+        `IN_VERIFICA`). Con l'introduzione della presa in carico (US21)
+        l'operatore può filtrare distintamente le aperte da pianificare e
+        quelle già in lavorazione.
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: stato
+          in: query
+          required: false
+          description: |
+            Filtra per stato. Valori ammessi: `APERTA`, `PRESA_IN_CARICO`.
+            Se omesso, include entrambi. Valori non ammessi → 400.
+          schema:
+            type: string
+            enum: [APERTA, PRESA_IN_CARICO]
+        - name: categoria
+          in: query
+          required: false
+          description: Filtra per categoria di barriera. Valori non ammessi → 400.
+          schema:
+            $ref: '#/components/schemas/CategoriaBarrieraPubblica'
+        - name: from
+          in: query
+          required: false
+          description: |
+            Limite inferiore (incluso) sulla data di creazione (`createdAt`).
+            Formato ISO 8601.
+          schema:
+            type: string
+            format: date-time
+          example: "2026-01-01T00:00:00.000Z"
+        - name: to
+          in: query
+          required: false
+          description: |
+            Limite superiore (incluso) sulla data di creazione (`createdAt`).
+            Formato ISO 8601. Deve essere >= from.
+          schema:
+            type: string
+            format: date-time
+          example: "2026-06-01T23:59:59.999Z"
+        - name: orderBy
+          in: query
+          required: false
+          description: |
+            Campo di ordinamento. Whitelist server-side: valori fuori lista → 400.
+          schema:
+            type: string
+            enum: [createdAt, updatedAt, categoria, stato]
+            default: createdAt
+        - name: order
+          in: query
+          required: false
+          description: Direzione dell'ordinamento.
+          schema:
+            type: string
+            enum: [asc, desc]
+            default: desc
+        - name: page
+          in: query
+          required: false
+          description: Numero di pagina (1-based).
+          schema:
+            type: integer
+            minimum: 1
+            default: 1
+        - name: limit
+          in: query
+          required: false
+          description: Numero di elementi per pagina.
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 20
+      responses:
+        '200':
+          description: Lista paginata di segnalazioni pubbliche.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaginatedReportsResponse'
+              example:
+                count: 2
+                pagination:
+                  page: 1
+                  limit: 20
+                  totalItems: 42
+                  totalPages: 3
+                  hasPrev: false
+                  hasNext: true
+                segnalazioni:
+                  - _id: 65b4f4e7b8d9c1f4a2e5b6d1
+                    tipo: pubblica
+                    descrizione: Marciapiede dissestato all'altezza del civico 12
+                    categoria: marciapiede_rotto
+                    stato: APERTA
+                    geolocalizzazione:
+                      type: Point
+                      coordinates: [11.1217, 46.0700]
+                    foto: []
+                    autore: 65a3f4e7b8d9c1f4a2e5b6c7
+                    enteCompetente: null
+                    createdAt: '2026-05-15T09:20:00.000Z'
+                    updatedAt: '2026-05-15T09:20:00.000Z'
+        '400':
+          $ref: '#/components/responses/ValidationError'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /admin/reports/{id}/presa-in-carico:
+    patch:
+      tags:
+        - Admin
+      summary: Prende in carico una segnalazione pubblica
+      operationId: presaInCaricoReport
+      description: |
+        Formalizza l'inizio dei lavori di rimozione di una barriera segnalata
+        su suolo pubblico (US21). L'operatore comunale "prende in carico" la
+        segnalazione: lo stato transita da `APERTA` a `PRESA_IN_CARICO` e il
+        campo `enteCompetente` viene valorizzato con l'`_id` dell'operatore
+        autenticato (letto dal JWT, non dal client).
+
+        Riservato agli operatori comunali (ruolo `operatore`).
+
+        **Transizione di stato consentita:** unicamente `APERTA → PRESA_IN_CARICO`.
+        Una segnalazione già `PRESA_IN_CARICO`, `RISOLTA` o `ARCHIVIATA` non è
+        ri-prendibile in carico e produce `409 Conflict`: lo stato corrente
+        della risorsa non permette la transizione.
+
+        **Scope:** opera solo su segnalazioni di tipo `pubblica`. Un `id` che
+        punta a una segnalazione privata produce `404` (fuori scope per questo
+        endpoint amministrativo).
+
+        **Assegnazione operatore:** `enteCompetente` è impostato server-side
+        dall'identità del JWT. Il client non può assegnare la presa in carico a
+        un operatore diverso da sé (anti-IDOR).
+
+        **Semantica PATCH:** è una modifica parziale della risorsa esistente
+        (cambia `stato` e `enteCompetente`). La non-idempotenza deriva dalla
+        natura della transizione di dominio: la seconda chiamata fallisce
+        perché lo stato non è più `APERTA`.
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: ObjectId della segnalazione pubblica da prendere in carico.
+          schema:
+            type: string
+            pattern: '^[a-fA-F0-9]{24}$'
+          example: 65b4f4e7b8d9c1f4a2e5b6d1
+      responses:
+        '200':
+          description: Segnalazione presa in carico con successo.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PresaInCaricoResponse'
+              example:
+                message: Segnalazione presa in carico con successo
+                segnalazione:
+                  _id: 65b4f4e7b8d9c1f4a2e5b6d1
+                  tipo: pubblica
+                  descrizione: Marciapiede dissestato all'altezza del civico 12
+                  categoria: marciapiede_rotto
+                  stato: PRESA_IN_CARICO
+                  geolocalizzazione:
+                    type: Point
+                    coordinates: [11.1217, 46.0700]
+                  foto: []
+                  autore: 65a3f4e7b8d9c1f4a2e5b6c7
+                  enteCompetente: 65a3f4e7b8d9c1f4a2e5b6c9
+                  createdAt: '2026-05-15T09:20:00.000Z'
+                  updatedAt: '2026-05-20T11:00:00.000Z'
+        '400':
+          description: |
+            `id` non è un ObjectId valido (24 caratteri esadecimali).
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ValidationError'
+              example:
+                error: Validazione fallita
+                details:
+                  - field: id
+                    message: ObjectId non valido
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          description: |
+            Segnalazione pubblica non trovata. L'`id` non corrisponde ad alcuna
+            segnalazione di tipo `pubblica` (inesistente o di tipo privato).
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                error: Segnalazione pubblica non trovata
+        '409':
+          description: |
+            Conflitto di stato. La segnalazione esiste ma non è in stato
+            `APERTA`, quindi non può essere presa in carico (es. già presa in
+            carico, risolta o archiviata).
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                error: 'La segnalazione non è in stato APERTA: impossibile prenderla in carico'
         '500':
           $ref: '#/components/responses/InternalServerError'
 
@@ -1767,44 +2306,6 @@ components:
           format: date-time
           example: '2026-05-15T09:20:00.000Z'
 
-    CreateSegnalazionePubblicaForm:
-      type: object
-      description: |
-        Payload `multipart/form-data` per la creazione di una segnalazione
-        pubblica. La geolocalizzazione è espressa come due campi piatti
-        (`longitudine`, `latitudine`) ricomposti server-side in `GeoJSONPoint`.
-      properties:
-        descrizione:
-          type: string
-          minLength: 10
-          maxLength: 1000
-          description: Descrizione testuale della barriera.
-          example: Marciapiede dissestato in prossimità delle strisce pedonali.
-        categoria:
-          $ref: '#/components/schemas/CategoriaBarrieraPubblica'
-        longitudine:
-          type: string
-          description: |
-            Longitudine GPS (valore numerico trasmesso come stringa per
-            limite di `multipart/form-data`). Range [-180, 180].
-          example: '11.1217'
-        latitudine:
-          type: string
-          description: |
-            Latitudine GPS (valore numerico trasmesso come stringa per
-            limite di `multipart/form-data`). Range [-90, 90].
-          example: '46.0700'
-        foto:
-          type: array
-          description: |
-            Array di file immagine. Massimo 5 file, ciascuno ≤ 5MB.
-            MIME ammessi: `image/jpeg`, `image/png`, `image/webp`.
-            Campo opzionale: una segnalazione può essere creata senza foto.
-          maxItems: 5
-          items:
-            type: string
-            format: binary
-
     SegnalazionePubblica:
       description: |
         Rappresentazione completa di una segnalazione su suolo pubblico
@@ -1824,52 +2325,6 @@ components:
                 ObjectId dell'operatore comunale assegnato. `null` finché non
                 avviene l'assegnazione.
               example: null
-
-    CreateSegnalazionePubblicaResponse:
-      type: object
-      description: Risposta alla creazione di una segnalazione pubblica.
-      required:
-        - message
-        - segnalazione
-      properties:
-        message:
-          type: string
-          example: Segnalazione creata con successo
-        segnalazione:
-          $ref: '#/components/schemas/SegnalazionePubblica'
-
-    CreateSegnalazionePrivataForm:
-      type: object
-      description: |
-        Payload `multipart/form-data` per la creazione di una segnalazione privata.
-        Identico a `CreateSegnalazionePubblicaForm` con in più il campo obbligatorio
-        `strutturaAssociata`.
-      properties:
-        strutturaAssociata:
-          type: string
-          description: L'ObjectId della StrutturaPrivata a cui associare la segnalazione.
-          example: 65b4f4e7b8d9c1f4a2e5b6a9
-        descrizione:
-          type: string
-          minLength: 10
-          maxLength: 1000
-          example: "Assenza di rampa all'ingresso del locale, impossibile entrare con sedia a rotelle."
-        categoria:
-          $ref: '#/components/schemas/CategoriaBarrieraPrivata'
-        longitudine:
-          type: string
-          description: Range [-180, 180].
-          example: '11.1217'
-        latitudine:
-          type: string
-          description: Range [-90, 90].
-          example: '46.0700'
-        foto:
-          type: array
-          maxItems: 5
-          items:
-            type: string
-            format: binary
 
     SegnalazionePrivata:
       description: |
@@ -1966,11 +2421,6 @@ components:
           pattern: '^[a-f0-9]{24}$'
           description: ObjectId del proprietario che ha registrato la struttura.
           example: 65a3f4e7b8d9c1f4a2e5b6c8
-        stato:
-          type: string
-          enum: [attiva, dismessa]
-          default: attiva
-          example: attiva
         createdAt:
           type: string
           format: date-time
@@ -2125,6 +2575,24 @@ components:
           example:
             - [11.121115, 46.066743]
             - [11.121305, 46.0673]
+    
+    OstacoloEscluso:
+      type: object
+      description: |
+        Rappresentazione di una segnalazione attiva esclusa dal percorso
+        perché incompatibile con il profilo disabilità del cittadino.
+        Corrisponde a un punto passato a Valhalla come `exclude_locations`.
+      required:
+        - segnalazioneId
+        - categoria
+        - tipo
+        - lng
+        - lat
+      properties:
+        segnalazioneId:
+          type: string
+          pattern: '^[a-f0-9]{24}$'
+          description: ObjectId M
 
     RouteResponse:
       type: object
@@ -2210,6 +2678,160 @@ components:
           type: array
           items:
             $ref: '#/components/schemas/HeatmapCella'
+
+    PaginationMeta:
+      type: object
+      description: Metadati di paginazione per le liste paginate.
+      required:
+        - page
+        - limit
+        - totalItems
+        - totalPages
+        - hasPrev
+        - hasNext
+      properties:
+        page:
+          type: integer
+          minimum: 1
+          description: Pagina corrente (1-based).
+          example: 1
+        limit:
+          type: integer
+          minimum: 1
+          description: Numero di elementi per pagina richiesto.
+          example: 20
+        totalItems:
+          type: integer
+          minimum: 0
+          description: Numero totale di documenti che soddisfano il filtro.
+          example: 42
+        totalPages:
+          type: integer
+          minimum: 0
+          description: Numero totale di pagine disponibili.
+          example: 3
+        hasPrev:
+          type: boolean
+          description: True se esiste una pagina precedente.
+          example: false
+        hasNext:
+          type: boolean
+          description: True se esiste una pagina successiva.
+          example: true
+
+    PaginatedReportsResponse:
+      type: object
+      description: Risposta paginata di `GET /admin/reports`.
+      required:
+        - count
+        - pagination
+        - segnalazioni
+      properties:
+        count:
+          type: integer
+          minimum: 0
+          description: Numero di elementi nella pagina corrente (<= limit).
+          example: 20
+        pagination:
+          $ref: '#/components/schemas/PaginationMeta'
+        segnalazioni:
+          type: array
+          items:
+            $ref: '#/components/schemas/SegnalazionePubblica'
+
+    PresaInCaricoResponse:
+      type: object
+      description: Risposta di `PATCH /admin/reports/{id}/presa-in-carico`.
+      required:
+        - message
+        - segnalazione
+      properties:
+        message:
+          type: string
+          example: Segnalazione presa in carico con successo
+        segnalazione:
+          $ref: '#/components/schemas/SegnalazionePubblica'
+
+    Accessibility:
+      type: object
+      description: |
+        Sottodocumento di autocertificazione dell'accessibilità di una
+        struttura. Ogni parametro è un booleano con default `false`.
+        Compilato dal proprietario (US15).
+      properties:
+        rampa:
+          type: boolean
+          description: Presenza di rampa di accesso per superare dislivelli all'ingresso.
+          default: false
+          example: true
+        ascensore:
+          type: boolean
+          description: Presenza di ascensore utilizzabile per raggiungere i piani.
+          default: false
+          example: false
+        bagnoAccessibile:
+          type: boolean
+          description: Presenza di servizio igienico accessibile a persone con disabilità.
+          default: false
+          example: true
+        ingressoSenzaGradini:
+          type: boolean
+          description: Ingresso a raso, privo di gradini.
+          default: false
+          example: true
+        parcheggioRiservato:
+          type: boolean
+          description: Presenza di posto auto riservato a persone con disabilità.
+          default: false
+          example: false
+ 
+    UpdateAccessibilityRequest:
+      type: object
+      description: |
+        Payload PATCH parziale per l'autocertificazione. Tutti i campi sono
+        opzionali ma almeno uno deve essere presente. Il campo derivato
+        `accessibile` NON è accettato (verrebbe ignorato): è calcolato
+        esclusivamente server-side.
+      minProperties: 1
+      properties:
+        rampa:
+          type: boolean
+          example: true
+        ascensore:
+          type: boolean
+          example: false
+        bagnoAccessibile:
+          type: boolean
+          example: true
+        ingressoSenzaGradini:
+          type: boolean
+          example: true
+        parcheggioRiservato:
+          type: boolean
+          example: false
+ 
+    GetStrutturaResponse:
+      type: object
+      required:
+        - struttura
+      description: Risposta di `GET /structures/{id}`.
+      properties:
+        struttura:
+          $ref: '#/components/schemas/StrutturaPrivata'
+ 
+    UpdateStrutturaResponse:
+      type: object
+      required:
+        - message
+        - struttura
+      description: Risposta di `PATCH /structures/{id}/accessibility`.
+      properties:
+        message:
+          type: string
+          example: Accessibilità aggiornata con successo
+        struttura:
+          $ref: '#/components/schemas/StrutturaPrivata'
+
 
     Error:
       type: object
