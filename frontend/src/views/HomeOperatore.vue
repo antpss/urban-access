@@ -15,6 +15,14 @@
           Dashboard
         </button>
 
+        <button type="button" @click="vaiAllePrivate"
+          class="flex items-center gap-2 px-3.5 py-2 text-sm font-bold rounded-xl text-white bg-gradient-to-r from-indigo-500 to-violet-500 hover:from-indigo-600 hover:to-violet-600 shadow-md shadow-indigo-200 transition-all">
+          <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+          </svg>
+          Private
+        </button>
+
         <!-- separatore tra azione di navigazione e controlli account -->
         <div class="h-6 w-px bg-slate-200"></div>
 
@@ -57,6 +65,11 @@ const vaiAlProfilo = () => {
 const vaiAllaDashboard = () => {
   router.push({ name: 'AdminReports' });
 };
+
+const vaiAllePrivate = () => {
+  router.push({ name: 'AdminPrivateReports' });
+};
+
 </script>
 
 <style scoped>

@@ -8,6 +8,7 @@ import HomeOperatore from '../views/HomeOperatore.vue';
 import AdminReports from '../views/AdminReports.vue';
 import Profilo from '../views/Profilo.vue';
 import { isAuthenticated, getUser } from '../services/auth';
+import AdminPrivateReports from '../views/AdminPrivateReports.vue';
 
 const routes = [
     { path: '/', redirect: '/login' },
@@ -53,6 +54,13 @@ const routes = [
         path: '/home/operatore/reports',
         name: 'AdminReports',
         component: AdminReports,
+        meta: { requiresAuth: true, role: 'operatore' }
+    },
+    {
+        //dashboard segnalazioni private: moderazione e forzatura stato (US23)
+        path: '/home/operatore/private-reports',
+        name: 'AdminPrivateReports',
+        component: AdminPrivateReports,
         meta: { requiresAuth: true, role: 'operatore' }
     },
     {
