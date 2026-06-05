@@ -107,7 +107,7 @@ describe('GET /api/v1/admin/reports - US20 Dashboard Segnalazioni', () => {
         expect(res.status).toBe(200);
         const filtro = findSpy.mock.calls[0][0];
         expect(filtro.tipo).toBe('pubblica');
-        expect(filtro.stato).toBe('APERTA');          // default, non $in
+        expect(filtro.stato).toEqual({ $in: ['APERTA', 'PRESA_IN_CARICO'] });    
     });
 
     test('200: categoria valida inserita nel filtro', async () => {

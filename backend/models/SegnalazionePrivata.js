@@ -53,6 +53,11 @@ const segnalazionePrivataSchema = new mongoose.Schema({
     visibile: {
         type: Boolean,
         default: false
+    },
+    motivazioneForzatura: {
+        type: String,
+        default: null,
+        maxlength: 500
     }
 });
 
@@ -60,6 +65,11 @@ segnalazionePrivataSchema.pre('validate', function() {
     //alla creazione una segnalazione privata nasce SEMPRE IN_VERIFICA (non ancora validata dal crowd)
     if (this.isNew && (this.stato === 'APERTA' || this.stato == null)) {
         this.stato = 'IN_VERIFICA';
+    }
+
+    //forzatura operatore che bypassa il vincolo di soglia e la coerenza visibile standard.
+    if (this._forzaturaOperatore === true) {
+        return;
     }
 
     //le segnalazioni IN_VERIFICA sono comunque VISIBILI in mappa, così i cittadini le vedono e possono validarle.

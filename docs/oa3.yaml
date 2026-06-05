@@ -1933,6 +1933,118 @@ paths:
         '500':
           $ref: '#/components/responses/InternalServerError'
 
+  /admin/privateReports/{id}:
+    patch:
+      tags:
+        - Admin
+      summary: Modifica lo stato di una segnalazione privata (override operatore)
+      operationId: forzaStatoSegnalazionePrivata
+      description: |
+        Permette a un **operatore comunale** di modificare lo stato di una
+        segnalazione **privata**, ignorando il normale processo di
+        validazione crowdsourcing. Tutela i cittadini quando il
+        proprietario della struttura ignora una segnalazione fondata che non
+        raggiunge la soglia di validazione comunitaria.
+
+        Riservato al ruolo `operatore`.
+
+        **Bypass dei controlli ordinari:**
+        - **Ownership:** l'operatore NON è proprietario della struttura. Il
+          controllo di ownership applicato altrove (`struttura.proprietario ===
+          JWT.userId`) viene volutamente saltato.
+        - **Soglia crowd:** lo stato viene imposto a prescindere da
+          `scoreAssociato` / `sogliaValidazione`.
+
+        **Stati target ammessi (whitelist):** `APERTA`, `ARCHIVIATA`, `RISOLTA`.
+        Valori fuori whitelist → `400`. Lo stato `IN_VERIFICA` non è un target
+        valido: si modifica *fuori* dalla verifica, non dentro.
+
+        Ogni chiamata incrementa
+        `numForzature` sulla struttura. Modificare due volte allo stesso stato
+        produce due incrementi (ogni intervento dell'operatore è un evento contato)
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: ObjectId della segnalazione privata da modificare.
+          schema:
+            type: string
+            pattern: '^[a-fA-F0-9]{24}$'
+          example: 65b1a2c3d4e5f6a7b8c9d0e1
+      requestBody:
+        required: true
+        description: Stato target e motivazione obbligatoria dell'override.
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ForceStatusRequest'
+            example:
+              stato: APERTA
+              motivazione: Segnalazione fondata ignorata dal proprietario, verificata da sopralluogo comunale
+      responses:
+        '200':
+          description: Stato modificato con successo.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ForceStatusResponse'
+              example:
+                message: Stato della segnalazione modificato con successo
+                segnalazione:
+                  _id: 65b1a2c3d4e5f6a7b8c9d0e1
+                  tipo: privata
+                  descrizione: Ingresso con gradino non segnalato, nessuna rampa
+                  categoria: mancanza_rampa
+                  stato: APERTA
+                  geolocalizzazione:
+                    type: Point
+                    coordinates: [11.1217, 46.0667]
+                  foto: []
+                  autore: 65a3f4e7b8d9c1f4a2e5b6c7
+                  strutturaAssociata: 65b4f4e7b8d9c1f4a2e5b6a9
+                  scoreAssociato: 3
+                  sogliaValidazione: 10
+                  listaValidatori: []
+                  numAnomalie: 0
+                  sogliaAllarme: 5
+                  visibile: true
+                  motivazioneForzatura: Segnalazione fondata ignorata dal proprietario, verificata da sopralluogo comunale
+                  createdAt: '2026-05-15T09:20:00.000Z'
+                  updatedAt: '2026-05-20T11:00:00.000Z'
+        '400':
+          description: |
+            Input non valido. Possibili cause:
+            - `id` non è un ObjectId valido (24 hex)
+            - `stato` mancante o fuori whitelist (`APERTA`, `ARCHIVIATA`, `RISOLTA`)
+            - `motivazione` mancante o più corta di 10 caratteri
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ValidationError'
+              example:
+                error: Validazione fallita
+                details:
+                  - field: motivazione
+                    message: la motivazione è obbligatoria (minimo 10 caratteri)
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          description: |
+            Segnalazione privata non trovata. L'`id` non corrisponde ad alcuna
+            segnalazione di tipo `privata` (inesistente o di tipo pubblico).
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                error: Segnalazione privata non trovata
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
 
 components:
 
@@ -2381,6 +2493,15 @@ components:
                 Se `false`, la segnalazione non appare sulla mappa pubblica.
                 Diventa `true` solo quando `scoreAssociato >= sogliaValidazione`.
               example: false
+            motivazioneForzatura:
+              type: string
+              nullable: true
+              maxLength: 500
+              description: |
+                Motivazione dell'ultima modifica di stato forzata da un
+                operatore. null se la segnalazione non è mai stata
+                forzata.
+              example: null
 
     CreateSegnalazionePrivataResponse:
       type: object
@@ -2429,6 +2550,13 @@ components:
           pattern: '^[a-f0-9]{24}$'
           description: ObjectId del proprietario che ha registrato la struttura.
           example: 65a3f4e7b8d9c1f4a2e5b6c8
+        numForzature:
+          type: integer
+          minimum: 0
+          default: 0
+          description: Numero di segnalazioni della struttura modificate forzatamente da un
+            operatore comunale perché ignorate dal proprietario. 
+          example: 0
         createdAt:
           type: string
           format: date-time
@@ -2839,6 +2967,43 @@ components:
           example: Accessibilità aggiornata con successo
         struttura:
           $ref: '#/components/schemas/StrutturaPrivata'
+
+    ForceStatusRequest:
+      type: object
+      description: |
+        Payload per la modifica di stato da parte dell'operatore (US23).
+        Entrambi i campi obbligatori.
+      required:
+        - stato
+        - motivazione
+      properties:
+        stato:
+          type: string
+          description: |
+            Stato target da imporre. Whitelist ristretta agli stati verso cui
+            ha senso modificare fuori dalla verifica crowd.
+          enum: [APERTA, ARCHIVIATA, RISOLTA]
+          example: APERTA
+        motivazione:
+          type: string
+          minLength: 10
+          maxLength: 500
+          description: |
+            Giustificazione obbligatoria dell'override. Persistita come audit
+            trail per garantire tracciabilità dell'intervento amministrativo.
+          example: Segnalazione fondata ignorata dal proprietario, verificata da sopralluogo comunale
+
+    ForceStatusResponse:
+      type: object
+      required:
+        - message
+        - segnalazione
+      properties:
+        message:
+          type: string
+          example: Stato della segnalazione modificato con successo
+        segnalazione:
+          $ref: '#/components/schemas/SegnalazionePrivata'
 
 
     Error:
