@@ -7,6 +7,12 @@
           <p class="text-sm font-extrabold text-slate-800 leading-tight">{{ user?.nome }}</p>
           <p class="text-xs text-slate-400 font-medium capitalize">{{ user?.ruolo }}</p>
         </div>
+        <button type="button" @click="vaiAllaDashboard" title="Dashboard segnalazioni"
+          class="p-2 text-slate-500 hover:text-emerald-600 rounded-lg hover:bg-emerald-50 transition-colors">
+          <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 10h16M4 14h16M4 18h16" />
+          </svg>
+        </button>
         <button type="button" @click="vaiAlProfilo" title="Vai al profilo"
           class="p-2 text-slate-500 hover:text-emerald-600 rounded-lg hover:bg-emerald-50 transition-colors">
           <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -41,6 +47,10 @@ const handleLogout = () => {
 
 const vaiAlProfilo = () => {
   router.push({ name: 'Profilo' });
+};
+
+const vaiAllaDashboard = () => {
+  router.push({ name: 'AdminReports' });
 };
 </script>
 
