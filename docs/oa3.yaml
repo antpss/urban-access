@@ -1678,6 +1678,147 @@ paths:
         '500':
           $ref: '#/components/responses/InternalServerError'
 
+  /admin/reports:
+    get:
+      tags:
+        - Admin
+      summary: Dashboard segnalazioni pubbliche (lista filtrabile, ordinata e paginata)
+      operationId: getReportsDashboard
+      description: |
+        Restituisce l'elenco **paginato** delle segnalazioni **pubbliche** per
+        la dashboard operativa del Comune, pensata per la pianificazione della
+        manutenzione (US20).
+
+        Riservato agli operatori comunali (ruolo `operatore`).
+
+        A differenza di `GET /publicReports` (lettura pubblica, non paginata),
+        questo endpoint aggiunge **filtro temporale** (`from`/`to` su
+        `createdAt`), **ordinamento** configurabile (`orderBy`/`order`) e
+        **paginazione** (`page`/`limit`), funzioni necessarie a gestire
+        volumi di dati elevati in un pannello operativo.
+
+        **Scope dati:** vengono restituite esclusivamente le segnalazioni di
+        tipo `pubblica`. Il filtro è forzato server-side e non è
+        sovrascrivibile dal client.
+
+        **Filtro stato:** se omesso, restituisce solo le segnalazioni `APERTA`
+        (criticità ancora attive sul territorio). Una segnalazione pubblica può
+        trovarsi unicamente in stato `APERTA` (vincolo OCL: lo stato
+        `IN_VERIFICA` è riservato alle private in fase di validazione crowd),
+        quindi `APERTA` è al momento l'unico valore ammesso.
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: stato
+          in: query
+          required: false
+          description: |
+            Filtra per stato. Al momento l'unico valore ammesso è `APERTA`
+            (le pubbliche non assumono altri stati attivi). Se omesso, il
+            default applicato è comunque `APERTA`. Valori non ammessi → 400.
+          schema:
+            type: string
+            enum: [APERTA]
+            default: APERTA
+        - name: categoria
+          in: query
+          required: false
+          description: Filtra per categoria di barriera. Valori non ammessi → 400.
+          schema:
+            $ref: '#/components/schemas/CategoriaBarrieraPubblica'
+        - name: from
+          in: query
+          required: false
+          description: |
+            Limite inferiore (incluso) sulla data di creazione (`createdAt`).
+            Formato ISO 8601.
+          schema:
+            type: string
+            format: date-time
+          example: "2026-01-01T00:00:00.000Z"
+        - name: to
+          in: query
+          required: false
+          description: |
+            Limite superiore (incluso) sulla data di creazione (`createdAt`).
+            Formato ISO 8601. Deve essere >= from.
+          schema:
+            type: string
+            format: date-time
+          example: "2026-06-01T23:59:59.999Z"
+        - name: orderBy
+          in: query
+          required: false
+          description: |
+            Campo di ordinamento. Whitelist server-side: valori fuori lista → 400.
+          schema:
+            type: string
+            enum: [createdAt, updatedAt, categoria, stato]
+            default: createdAt
+        - name: order
+          in: query
+          required: false
+          description: Direzione dell'ordinamento.
+          schema:
+            type: string
+            enum: [asc, desc]
+            default: desc
+        - name: page
+          in: query
+          required: false
+          description: Numero di pagina (1-based).
+          schema:
+            type: integer
+            minimum: 1
+            default: 1
+        - name: limit
+          in: query
+          required: false
+          description: Numero di elementi per pagina.
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 20
+      responses:
+        '200':
+          description: Lista paginata di segnalazioni pubbliche.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaginatedReportsResponse'
+              example:
+                count: 2
+                pagination:
+                  page: 1
+                  limit: 20
+                  totalItems: 42
+                  totalPages: 3
+                  hasPrev: false
+                  hasNext: true
+                segnalazioni:
+                  - _id: 65b4f4e7b8d9c1f4a2e5b6d1
+                    tipo: pubblica
+                    descrizione: Marciapiede dissestato all'altezza del civico 12
+                    categoria: marciapiede_rotto
+                    stato: APERTA
+                    geolocalizzazione:
+                      type: Point
+                      coordinates: [11.1217, 46.0700]
+                    foto: []
+                    autore: 65a3f4e7b8d9c1f4a2e5b6c7
+                    enteCompetente: null
+                    createdAt: '2026-05-15T09:20:00.000Z'
+                    updatedAt: '2026-05-15T09:20:00.000Z'
+        '400':
+          $ref: '#/components/responses/ValidationError'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
 
 components:
 
@@ -2431,6 +2572,66 @@ components:
           type: array
           items:
             $ref: '#/components/schemas/HeatmapCella'
+
+    PaginationMeta:
+      type: object
+      description: Metadati di paginazione per le liste paginate.
+      required:
+        - page
+        - limit
+        - totalItems
+        - totalPages
+        - hasPrev
+        - hasNext
+      properties:
+        page:
+          type: integer
+          minimum: 1
+          description: Pagina corrente (1-based).
+          example: 1
+        limit:
+          type: integer
+          minimum: 1
+          description: Numero di elementi per pagina richiesto.
+          example: 20
+        totalItems:
+          type: integer
+          minimum: 0
+          description: Numero totale di documenti che soddisfano il filtro.
+          example: 42
+        totalPages:
+          type: integer
+          minimum: 0
+          description: Numero totale di pagine disponibili.
+          example: 3
+        hasPrev:
+          type: boolean
+          description: True se esiste una pagina precedente.
+          example: false
+        hasNext:
+          type: boolean
+          description: True se esiste una pagina successiva.
+          example: true
+
+    PaginatedReportsResponse:
+      type: object
+      description: Risposta paginata di `GET /admin/reports`.
+      required:
+        - count
+        - pagination
+        - segnalazioni
+      properties:
+        count:
+          type: integer
+          minimum: 0
+          description: Numero di elementi nella pagina corrente (<= limit).
+          example: 20
+        pagination:
+          $ref: '#/components/schemas/PaginationMeta'
+        segnalazioni:
+          type: array
+          items:
+            $ref: '#/components/schemas/SegnalazionePubblica'
 
     Accessibility:
       type: object
