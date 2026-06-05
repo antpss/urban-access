@@ -66,18 +66,28 @@
   transform: scale(1.15);
 }
 
-.struttura-custom {
-  background: transparent;
-  border: none;
+.struttura-dot-wrapper {
+  background: transparent !important;
+  border: none !important;
 }
 
-.casetta-wrapper {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  transition: transform 0.18s cubic-bezier(0.4, 0, 0.2, 1);
-  transform-origin: bottom center;
+.struttura-dot {
+  width: 15px;
+  height: 15px;
+  border-radius: 50%;
+  border: 2px solid white;
+  box-shadow: 0 2px 5px rgba(0, 0, 0, 0.4);
+  transition: transform 0.2s cubic-bezier(0.4, 0, 0.2, 1), box-shadow 0.2s ease;
   cursor: pointer;
+}
+
+.struttura-dot:hover {
+  transform: scale(1.2);
+}
+
+.struttura-dot.selected {
+  transform: scale(1.4);
+  box-shadow: 0 0 0 3px rgba(255, 255, 255, 0.8), 0 3px 8px rgba(0, 0, 0, 0.5);
 }
 
 .casetta-label {

@@ -39,6 +39,17 @@ let routeLayer = null;
 let originMarker = null;
 let destMarker = null;
 
+const colorMapStrutture = {
+  ristorante: '#ef4444',    
+  bar: '#BA63F8',           
+  negozio: '#a855f7',       
+  ufficio: '#64748b',       
+  hotel: '#14b8a6',         
+  studio_medico: '#F5CC27', 
+  palestra: '#22c55e',      
+  altro: '#52525b'          
+}
+
 function escapeHtml(str) {
   return String(str)
     .replace(/&/g, '&amp;')
@@ -75,30 +86,17 @@ function creaIconaOrigine() {
 }
 
 function creaIconaStruttura(struttura, selezionata = false) {
-  const grigio = '#64748b';
-  const grigioBordo = '#475569';
-  const nomeEscaped = escapeHtml(struttura.nome);
+  // Prende il colore della categoria, o il grigio neutro se non lo trova
+  const colore = colorMapStrutture[struttura.categoria] || colorMapStrutture.altro;
+  const classeSelezionata = selezionata ? ' selected' : '';
 
-  const svgCasetta = `
-    <svg width="32" height="32" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-      <path d="M12 3 L21 10 L19 10 L19 20 L5 20 L5 10 L3 10 Z"
-            fill="${grigio}" stroke="${grigioBordo}" stroke-width="1" stroke-linejoin="round"/>
-      <rect x="10" y="13" width="4" height="7" fill="white" opacity="0.85"/>
-    </svg>
-  `;
-
-  const html = `
-    <div class="casetta-wrapper${selezionata ? ' selected' : ''}">
-      <div class="casetta-label" style="color:${grigio}">${nomeEscaped}</div>
-      <div class="casetta-icon">${svgCasetta}</div>
-    </div>
-  `;
+  const html = `<div class="struttura-dot${classeSelezionata}" style="background-color: ${colore};"></div>`;
 
   return L.divIcon({
-    className: 'struttura-custom',
+    className: 'struttura-dot-wrapper',
     html,
-    iconSize: [32, 32],
-    iconAnchor: [16, 32],
+    iconSize: [20, 20],
+    iconAnchor: [10, 10],
   });
 }
 
@@ -209,6 +207,13 @@ async function caricaSegnalazioni() {
 // funzione che scarica le strutture dal backend e le visualizza su mappa
 async function caricaStrutture() {
   try {
+
+    if (map.getZoom() < 14) {
+      struttureLayer.clearLayers();
+      strutturaSelezionataMarker = null;
+      return;
+    }
+
     const bounds = map.getBounds();
     const sw = bounds.getSouthWest();
     const ne = bounds.getNorthEast();
