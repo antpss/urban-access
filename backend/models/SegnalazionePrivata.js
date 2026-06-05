@@ -53,6 +53,11 @@ const segnalazionePrivataSchema = new mongoose.Schema({
     visibile: {
         type: Boolean,
         default: false
+    },
+    motivazioneForzatura: {
+        type: String,
+        default: null,
+        maxlength: 500
     }
 });
 

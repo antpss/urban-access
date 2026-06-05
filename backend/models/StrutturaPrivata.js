@@ -80,6 +80,11 @@ const strutturaPrivataSchema = new mongoose.Schema({
         ref: 'User',
         required: [true, 'proprietario obbligatorio']
     },
+    numForzature: {
+        type: Number,
+        default: 0,
+        min: 0
+    },
     accessibilita: {
         type: accessibilitaSchema,
         default: () => ({})    //genera il sottodoc con tutti i default false
