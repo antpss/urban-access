@@ -256,6 +256,19 @@ exports.getPrivateReports = async (req, res) => {
             filter.stato = { $in: ['IN_VERIFICA', 'APERTA'] };
         }
 
+        // recupera tutte le segnalazioni relative a una struttura privata
+        const { strutturaAssociata } = req.query;
+        if (strutturaAssociata) {
+            const HEX24 = /^[a-fA-F0-9]{24}$/;
+            if (!HEX24.test(strutturaAssociata)) {
+                return res.status(400).json({
+                    error: 'Validazione fallita',
+                    details: [{ field: 'strutturaAssociata', message: 'ObjectId non valido' }]
+                });
+            }
+            filter.strutturaAssociata = strutturaAssociata;
+        }
+
         const segnalazioni = await Segnalazione.find(filter).select('-__v -bloccaModifica -listaValidatori -numAnomalie').lean();
 
         return res.status(200).json({
