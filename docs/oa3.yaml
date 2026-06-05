@@ -2485,6 +2485,15 @@ components:
                 Se `false`, la segnalazione non appare sulla mappa pubblica.
                 Diventa `true` solo quando `scoreAssociato >= sogliaValidazione`.
               example: false
+            motivazioneForzatura:
+              type: string
+              nullable: true
+              maxLength: 500
+              description: |
+                Motivazione dell'ultima modifica di stato forzata da un
+                operatore. null se la segnalazione non è mai stata
+                forzata.
+              example: null
 
     CreateSegnalazionePrivataResponse:
       type: object
@@ -2533,6 +2542,13 @@ components:
           pattern: '^[a-f0-9]{24}$'
           description: ObjectId del proprietario che ha registrato la struttura.
           example: 65a3f4e7b8d9c1f4a2e5b6c8
+        numForzature:
+          type: integer
+          minimum: 0
+          default: 0
+          description: Numero di segnalazioni della struttura modificate forzatamente da un
+            operatore comunale perché ignorate dal proprietario. 
+          example: 0
         createdAt:
           type: string
           format: date-time
