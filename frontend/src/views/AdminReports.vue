@@ -38,6 +38,17 @@
     <!-- barra filtri -->
     <div class="shrink-0 px-6 py-4 bg-white/80 backdrop-blur border-b border-slate-100">
       <div class="flex flex-wrap items-end gap-3">
+        <!-- stato -->
+        <div class="flex flex-col">
+          <label class="text-xs font-bold text-slate-500 mb-1 uppercase tracking-wide">Stato</label>
+          <select v-model="filtroStato"
+            class="text-sm rounded-lg border border-slate-200 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-emerald-400">
+            <option value="">Tutti (aperta + in carico)</option>
+            <option value="APERTA">Solo APERTA</option>
+            <option value="PRESA_IN_CARICO">Solo IN CARICO</option>
+          </select>
+        </div>
+
         <!-- categoria -->
         <div class="flex flex-col">
           <label class="text-xs font-bold text-slate-500 mb-1 uppercase tracking-wide">Categoria</label>
@@ -130,7 +141,8 @@
                 </span>
               </td>
               <td class="px-4 py-3">
-                <span class="inline-block px-2.5 py-1 rounded-full text-xs font-bold bg-emerald-100 text-emerald-700">
+                <span class="inline-block px-2.5 py-1 rounded-full text-xs font-bold"
+                  :class="s.stato === 'PRESA_IN_CARICO' ? 'bg-amber-100 text-amber-700' : 'bg-emerald-100 text-emerald-700'">
                   {{ s.stato }}
                 </span>
               </td>
@@ -138,11 +150,27 @@
               <td class="px-4 py-3 text-slate-400 text-xs whitespace-nowrap">
                 {{ s.geolocalizzazione?.coordinates?.[1]?.toFixed(5) }}, {{ s.geolocalizzazione?.coordinates?.[0]?.toFixed(5) }}
               </td>
+              <td class="px-4 py-3 whitespace-nowrap">
+                <!-- bottone solo sulle APERTA: una PRESA_IN_CARICO non è ri-prendibile (il backend darebbe 409) -->
+                <button v-if="s.stato === 'APERTA'" type="button"
+                  @click="prendiInCarico(s)" :disabled="presaInCaricoLoading === s._id"
+                  class="px-3 py-1.5 text-xs font-bold rounded-lg text-white bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-600 hover:to-teal-600 shadow-sm disabled:opacity-50 disabled:cursor-not-allowed transition-all">
+                  {{ presaInCaricoLoading === s._id ? 'Attendere…' : 'Prendi in carico' }}
+                </button>
+                <span v-else class="text-xs font-semibold text-amber-600">In carico</span>
+              </td>
             </tr>
           </tbody>
         </table>
       </div>
     </main>
+
+    <!-- banner esito azione presa in carico -->
+    <div v-if="messaggioAzione" class="shrink-0 px-6 py-2">
+      <p class="text-xs font-semibold" :class="messaggioAzioneErrore ? 'text-rose-600' : 'text-emerald-600'">
+        {{ messaggioAzione }}
+      </p>
+    </div>
 
     <!-- footer: paginazione -->
     <footer v-if="!caricamento && !errore && pagination.totalItems > 0"
@@ -195,16 +223,18 @@ const colonne = [
   { campo: 'categoria',   label: 'Categoria',   ordinabile: true },
   { campo: 'stato',       label: 'Stato',       ordinabile: true },
   { campo: 'createdAt',   label: 'Creata il',   ordinabile: true },
-  { campo: 'coordinate',  label: 'Coordinate',  ordinabile: false }
+  { campo: 'coordinate',  label: 'Coordinate',  ordinabile: false },
+  { campo: 'azioni',      label: 'Azioni',      ordinabile: false }
 ];
 
 //stato filtri (bozza: applicati solo al click su "Applica")
+const filtroStato = ref('');
 const filtroCategoria = ref('');
 const filtroFrom = ref('');
 const filtroTo = ref('');
 const limit = ref(20);
 
-//stato ordinamento e paginazione
+//stato ordinamento e paginazione (effettivi: guidano la fetch)
 const orderBy = ref('createdAt');
 const order = ref('desc');
 const page = ref(1);
@@ -214,6 +244,12 @@ const segnalazioni = ref([]);
 const pagination = reactive({ page: 1, limit: 20, totalItems: 0, totalPages: 0, hasPrev: false, hasNext: false });
 const caricamento = ref(false);
 const errore = ref('');
+
+//stato dell'azione "prendi in carico": contiene l'_id della riga in elaborazione
+//(o '' se nessuna), così disabilito solo il bottone cliccato
+const presaInCaricoLoading = ref('');
+const messaggioAzione = ref('');
+const messaggioAzioneErrore = ref(false);
 
 //mappa categoria -> etichetta (fallback al valore grezzo se non mappata)
 function etichettaCategoria(value) {
@@ -241,6 +277,7 @@ async function caricaReports() {
   errore.value = '';
   try {
     const params = new URLSearchParams();
+    if (filtroStato.value) params.set('stato', filtroStato.value);
     if (filtroCategoria.value) params.set('categoria', filtroCategoria.value);
     //input date 'YYYY-MM-DD' -> estremi ISO della giornata (stessa logica di AdminHeatmap)
     if (filtroFrom.value) params.set('from', `${filtroFrom.value}T00:00:00.000Z`);
@@ -277,6 +314,7 @@ function applicaFiltri() {
 }
 
 function resetFiltri() {
+  filtroStato.value = '';
   filtroCategoria.value = '';
   filtroFrom.value = '';
   filtroTo.value = '';
@@ -316,6 +354,37 @@ function vaiAlProfilo() {
 function handleLogout() {
   clearSession();
   router.push('/login');
+}
+
+//prende in carico una segnalazione APERTA.
+async function prendiInCarico(s) {
+  presaInCaricoLoading.value = s._id;
+  messaggioAzione.value = '';
+  messaggioAzioneErrore.value = false;
+  try {
+    const res = await authFetch(`${API_BASE_URL}/admin/reports/${s._id}/presa-in-carico`, {
+      method: 'PATCH'
+    });
+    if (!res.ok) {
+      const body = await res.json().catch(() => ({}));
+      //409: qualcun altro l'ha già presa in carico nel frattempo
+      messaggioAzione.value = res.status === 409
+        ? 'Segnalazione già presa in carico da un altro operatore.'
+        : (body.error || `Errore ${res.status}`);
+      messaggioAzioneErrore.value = true;
+      return;
+    }
+    const data = await res.json();
+    //muto in-place l'elemento esistente: stato e enteCompetente aggiornati, riga reattiva.
+    Object.assign(s, data.segnalazione);
+    messaggioAzione.value = 'Segnalazione presa in carico.';
+  } catch (err) {
+    console.error('PATCH /admin/reports/:id/presa-in-carico', err);
+    messaggioAzione.value = 'Errore di rete durante la presa in carico.';
+    messaggioAzioneErrore.value = true;
+  } finally {
+    presaInCaricoLoading.value = '';
+  }
 }
 
 onMounted(caricaReports);
