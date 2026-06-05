@@ -1701,11 +1701,13 @@ paths:
         tipo `pubblica`. Il filtro è forzato server-side e non è
         sovrascrivibile dal client.
 
-        **Filtro stato:** se omesso, restituisce solo le segnalazioni `APERTA`
-        (criticità ancora attive sul territorio). Una segnalazione pubblica può
-        trovarsi unicamente in stato `APERTA` (vincolo OCL: lo stato
-        `IN_VERIFICA` è riservato alle private in fase di validazione crowd),
-        quindi `APERTA` è al momento l'unico valore ammesso.
+        **Filtro stato:** se omesso, restituisce le segnalazioni in stati
+        "lavorabili" dal punto di vista operativo, ovvero `APERTA` e
+        `PRESA_IN_CARICO`. Lo stato `IN_VERIFICA` è escluso perché riservato
+        alle private in validazione crowd (vincolo OCL: una pubblica non è mai
+        `IN_VERIFICA`). Con l'introduzione della presa in carico (US21)
+        l'operatore può filtrare distintamente le aperte da pianificare e
+        quelle già in lavorazione.
       security:
         - bearerAuth: []
       parameters:
@@ -1713,13 +1715,11 @@ paths:
           in: query
           required: false
           description: |
-            Filtra per stato. Al momento l'unico valore ammesso è `APERTA`
-            (le pubbliche non assumono altri stati attivi). Se omesso, il
-            default applicato è comunque `APERTA`. Valori non ammessi → 400.
+            Filtra per stato. Valori ammessi: `APERTA`, `PRESA_IN_CARICO`.
+            Se omesso, include entrambi. Valori non ammessi → 400.
           schema:
             type: string
-            enum: [APERTA]
-            default: APERTA
+            enum: [APERTA, PRESA_IN_CARICO]
         - name: categoria
           in: query
           required: false
@@ -1816,6 +1816,112 @@ paths:
           $ref: '#/components/responses/Unauthorized'
         '403':
           $ref: '#/components/responses/Forbidden'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /admin/reports/{id}/presa-in-carico:
+    patch:
+      tags:
+        - Admin
+      summary: Prende in carico una segnalazione pubblica
+      operationId: presaInCaricoReport
+      description: |
+        Formalizza l'inizio dei lavori di rimozione di una barriera segnalata
+        su suolo pubblico (US21). L'operatore comunale "prende in carico" la
+        segnalazione: lo stato transita da `APERTA` a `PRESA_IN_CARICO` e il
+        campo `enteCompetente` viene valorizzato con l'`_id` dell'operatore
+        autenticato (letto dal JWT, non dal client).
+
+        Riservato agli operatori comunali (ruolo `operatore`).
+
+        **Transizione di stato consentita:** unicamente `APERTA → PRESA_IN_CARICO`.
+        Una segnalazione già `PRESA_IN_CARICO`, `RISOLTA` o `ARCHIVIATA` non è
+        ri-prendibile in carico e produce `409 Conflict`: lo stato corrente
+        della risorsa non permette la transizione.
+
+        **Scope:** opera solo su segnalazioni di tipo `pubblica`. Un `id` che
+        punta a una segnalazione privata produce `404` (fuori scope per questo
+        endpoint amministrativo).
+
+        **Assegnazione operatore:** `enteCompetente` è impostato server-side
+        dall'identità del JWT. Il client non può assegnare la presa in carico a
+        un operatore diverso da sé (anti-IDOR).
+
+        **Semantica PATCH:** è una modifica parziale della risorsa esistente
+        (cambia `stato` e `enteCompetente`). La non-idempotenza deriva dalla
+        natura della transizione di dominio: la seconda chiamata fallisce
+        perché lo stato non è più `APERTA`.
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: ObjectId della segnalazione pubblica da prendere in carico.
+          schema:
+            type: string
+            pattern: '^[a-fA-F0-9]{24}$'
+          example: 65b4f4e7b8d9c1f4a2e5b6d1
+      responses:
+        '200':
+          description: Segnalazione presa in carico con successo.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PresaInCaricoResponse'
+              example:
+                message: Segnalazione presa in carico con successo
+                segnalazione:
+                  _id: 65b4f4e7b8d9c1f4a2e5b6d1
+                  tipo: pubblica
+                  descrizione: Marciapiede dissestato all'altezza del civico 12
+                  categoria: marciapiede_rotto
+                  stato: PRESA_IN_CARICO
+                  geolocalizzazione:
+                    type: Point
+                    coordinates: [11.1217, 46.0700]
+                  foto: []
+                  autore: 65a3f4e7b8d9c1f4a2e5b6c7
+                  enteCompetente: 65a3f4e7b8d9c1f4a2e5b6c9
+                  createdAt: '2026-05-15T09:20:00.000Z'
+                  updatedAt: '2026-05-20T11:00:00.000Z'
+        '400':
+          description: |
+            `id` non è un ObjectId valido (24 caratteri esadecimali).
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ValidationError'
+              example:
+                error: Validazione fallita
+                details:
+                  - field: id
+                    message: ObjectId non valido
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          description: |
+            Segnalazione pubblica non trovata. L'`id` non corrisponde ad alcuna
+            segnalazione di tipo `pubblica` (inesistente o di tipo privato).
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                error: Segnalazione pubblica non trovata
+        '409':
+          description: |
+            Conflitto di stato. La segnalazione esiste ma non è in stato
+            `APERTA`, quindi non può essere presa in carico (es. già presa in
+            carico, risolta o archiviata).
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                error: 'La segnalazione non è in stato APERTA: impossibile prenderla in carico'
         '500':
           $ref: '#/components/responses/InternalServerError'
 
@@ -2632,6 +2738,19 @@ components:
           type: array
           items:
             $ref: '#/components/schemas/SegnalazionePubblica'
+
+    PresaInCaricoResponse:
+      type: object
+      description: Risposta di `PATCH /admin/reports/{id}/presa-in-carico`.
+      required:
+        - message
+        - segnalazione
+      properties:
+        message:
+          type: string
+          example: Segnalazione presa in carico con successo
+        segnalazione:
+          $ref: '#/components/schemas/SegnalazionePubblica'
 
     Accessibility:
       type: object
