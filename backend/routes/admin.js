@@ -19,4 +19,12 @@ router.get('/reports',
     adminController.getReportsDashboard
 );
 
+// PATCH /api/v1/admin/reports/:id/presa-in-carico
+//operatore prende in carico una segnalazione pubblica APERTA
+router.patch('/reports/:id/presa-in-carico',
+    verifyToken,
+    requireRole('operatore'),
+    adminController.presaInCarico
+);
+
 module.exports = router;
