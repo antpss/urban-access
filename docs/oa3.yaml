@@ -844,6 +844,14 @@ paths:
               - ascensore_guasto
               - spazi_interni_stretti
               - altro
+        - name: strutturaAssociata
+          in: query
+          required: false
+          description: Filtra le segnalazioni private per la struttura associata (ObjectId).
+          schema:
+            type: string
+            pattern: '^[a-fA-F0-9]{24}$'
+          example: "65b4f4e7b8d9c1f4a2e5b6a9"
       responses:
         '200':
           description: Lista segnalazioni private filtrate
