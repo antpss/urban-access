@@ -27,4 +27,11 @@ router.patch('/reports/:id/presa-in-carico',
     adminController.presaInCarico
 );
 
+// PATCH /api/v1/admin/privateReports/:id
+router.patch('/privateReports/:id',
+    verifyToken,
+    requireRole('operatore'),
+    adminController.forzaStatoPrivata
+);
+
 module.exports = router;

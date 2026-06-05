@@ -67,6 +67,11 @@ segnalazionePrivataSchema.pre('validate', function() {
         this.stato = 'IN_VERIFICA';
     }
 
+    //forzatura operatore che bypassa il vincolo di soglia e la coerenza visibile standard.
+    if (this._forzaturaOperatore === true) {
+        return;
+    }
+
     //le segnalazioni IN_VERIFICA sono comunque VISIBILI in mappa, così i cittadini le vedono e possono validarle.
     if (this.stato === 'IN_VERIFICA') {
         this.visibile = true;

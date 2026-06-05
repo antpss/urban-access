@@ -1,6 +1,7 @@
 const mongoose = require('mongoose');
 const Segnalazione = require('../models/Segnalazione');
 const { categoriaPubblica } = require('../models/SegnalazionePubblica');
+const StrutturaPrivata = require('../models/StrutturaPrivata');
 
 //stati considerati "attivi" per la heatmap: criticità ancora aperte sul territorio
 //esclusi di proposito: PRESA_IN_CARICO, RISOLTA, ARCHIVIATA
@@ -321,6 +322,81 @@ exports.presaInCarico = async (req, res) => {
 
     } catch (err) {
         console.error('PATCH /admin/reports/:id/presa-in-carico', err);
+        if (err.name === 'ValidationError') {
+            const details = Object.values(err.errors).map(e => ({
+                field: e.path,
+                message: e.message
+            }));
+            return res.status(400).json({ error: 'Validazione fallita', details });
+        }
+        return res.status(500).json({ error: 'Errore interno del server' });
+    }
+};
+
+
+//PATCH /api/v1/admin/privateReports/:id
+//US23 Forzatura stato segnalazione privata da parte dell'operatore
+//bypassa ownership e soglia di validazione crowd
+const STATI_FORZABILI = ['APERTA', 'ARCHIVIATA', 'RISOLTA'];
+
+exports.forzaStatoPrivata = async (req, res) => {
+    try {
+        const { id } = req.params;
+        const { stato, motivazione } = req.body || {};
+
+        //validazione ObjectId prima di toccare il db
+        if (!mongoose.Types.ObjectId.isValid(id)) {
+            return res.status(400).json({
+                error: 'Validazione fallita',
+                details: [{ field: 'id', message: 'ObjectId non valido' }]
+            });
+        }
+
+        //stato target obbligatorio e ristretto alla whitelist
+        if (!stato || !STATI_FORZABILI.includes(stato)) {
+            return res.status(400).json({
+                error: 'Validazione fallita',
+                details: [{ field: 'stato', message: `valore non ammesso. Ammessi: ${STATI_FORZABILI.join(', ')}` }]
+            });
+        }
+
+        //motivazione obbligatoria minimo 10 caratteri
+        if (!motivazione || typeof motivazione !== 'string' || motivazione.trim().length < 10) {
+            return res.status(400).json({
+                error: 'Validazione fallita',
+                details: [{ field: 'motivazione', message: 'la motivazione è obbligatoria (minimo 10 caratteri)' }]
+            });
+        }
+
+        //findOne con tipo 'privata' sul modello base
+        const segnalazione = await Segnalazione.findOne({ _id: id, tipo: 'privata' });
+        if (!segnalazione) {
+            return res.status(404).json({ error: 'Segnalazione privata non trovata' });
+        }
+
+        //applico la modifica
+        segnalazione.stato = stato;
+        segnalazione.visibile = (stato === 'APERTA');
+        segnalazione.motivazioneForzatura = motivazione.trim();
+
+        //flag transitorio dice al pre('validate') di saltare il vincolo di soglia crowd
+        segnalazione._forzaturaOperatore = true;
+
+        await segnalazione.save();
+
+        //incremento atomico del contatore sulla struttura
+        await StrutturaPrivata.findByIdAndUpdate(
+            segnalazione.strutturaAssociata,
+            { $inc: { numForzature: 1 } }
+        );
+
+        return res.status(200).json({
+            message: 'Stato della segnalazione modificato con successo',
+            segnalazione
+        });
+
+    } catch (err) {
+        console.error('PATCH /admin/privateReports/:id', err);
         if (err.name === 'ValidationError') {
             const details = Object.values(err.errors).map(e => ({
                 field: e.path,
