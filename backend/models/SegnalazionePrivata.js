@@ -85,6 +85,11 @@ segnalazionePrivataSchema.pre('validate', function() {
             this.visibile = true;
         }
     }
+
+    if (this.stato === 'RISOLTA') {
+        this.visibile = false;
+        this.bloccaModifica = true;
+    }
 });
 
 module.exports = Segnalazione.discriminator('privata', segnalazionePrivataSchema);

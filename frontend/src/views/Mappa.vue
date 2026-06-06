@@ -18,6 +18,11 @@ const props = defineProps({
   categoria: {
     type: String,
     default: ''
+  },
+
+  proprietarioId: {
+    type: String,
+    default: ''
   }
 });
 
@@ -57,6 +62,26 @@ function escapeHtml(str) {
     .replace(/>/g, '&gt;')
     .replace(/"/g, '&quot;');
 }
+
+function getBboxSicuro() {
+  if (!map) return null;
+  const b = map.getBounds();
+  if (!b || !b.isValid()) return null;
+
+  const minLat = Math.max(-90, b.getSouth());
+  const maxLat = Math.min(90,  b.getNorth());
+  let minLng = Math.max(-180, b.getWest());
+  let maxLng = Math.min(180,  b.getEast());
+
+  if (b.getEast() - b.getWest() >= 360 || minLng >= maxLng) {
+    minLng = -180;
+    maxLng = 180;
+  }
+  if (minLat >= maxLat) return null;
+
+  return `${minLng},${minLat},${maxLng},${maxLat}`;
+}
+
 let ostacoliLayer = null;
 
 function creaIconaCustom(tipo) {
@@ -120,13 +145,9 @@ function creaIconaStruttura(struttura, selezionata = false) {
 //funzione che scarica i dati dal backend e li visualizza su mappa
 async function caricaSegnalazioni() {
   try {
-    // calcola bbox dalla viewport corrente della mappa
-    const bounds = map.getBounds();
-    const southWest = bounds.getSouthWest();
-    const northEast = bounds.getNorthEast();
-    const bbox = `${southWest.lng},${southWest.lat},${northEast.lng},${northEast.lat}`;
+    const bbox = getBboxSicuro();
+    if (!bbox) return;
 
-    // pubbliche: solo APERTA. private: APERTA + IN_VERIFICA (per poterle validare).
     const paramsPublic = new URLSearchParams({ bbox, stato: 'APERTA' });
     const paramsPrivate = new URLSearchParams({ bbox });
 
@@ -138,6 +159,11 @@ async function caricaSegnalazioni() {
 
     let chiamaPublic = true;
     let chiamaPrivate = true;
+
+    if (props.proprietarioId) {
+      paramsPrivate.set('proprietario', props.proprietarioId);
+      chiamaPublic = false;
+    }
 
     if (scope === 'pubblica') {
       paramsPublic.set('categoria', categoriaValue);
@@ -231,12 +257,17 @@ async function caricaStrutture() {
       return;
     }
 
-    const bounds = map.getBounds();
-    const sw = bounds.getSouthWest();
-    const ne = bounds.getNorthEast();
-    const bbox = `${sw.lng},${sw.lat},${ne.lng},${ne.lat}`;
+    const bbox = getBboxSicuro();
+    if (!bbox) return;
 
     const params = new URLSearchParams({ bbox });
+
+    // nella home del prorietario viene filtrato per l'id del prorpietario
+    // il controller GET /structures autorizza il filtro solo se proprietarioId corrisponde all'utente loggato
+    // in quel caso include il campo proprietario nella risposta
+    if (props.proprietarioId) {
+      params.set('proprietario', props.proprietarioId);
+    }
 
     let categoriaValue = '';
     if (props.categoria) {
@@ -374,7 +405,7 @@ function resetView() {
 
 defineExpose({ refresh: caricaSegnalazioni, refreshStrutture: caricaStrutture, deselezionaStruttura, drawRoute, clearRoute, resetView });
 
-watch(() => props.categoria, () => {
+watch(() => [props.categoria, props.proprietarioId], () => {
   if (map) {
     caricaSegnalazioni();
     caricaStrutture();
@@ -405,6 +436,12 @@ onMounted(() => {
     caricaSegnalazioni();
     caricaStrutture();
   });
+
+  setTimeout(() => {
+    map.invalidateSize();
+    caricaSegnalazioni();
+    caricaStrutture();
+  }, 0);
 
   caricaSegnalazioni();
   caricaStrutture();

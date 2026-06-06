@@ -26,4 +26,11 @@ router.post('/:id/validations',
     validationController.validatePrivateReport
 );
 
+// PATCH /api/v1/privateReports/:id/stato
+router.patch('/:id/stato',
+    verifyToken,
+    requireRole('proprietario'),
+    reportController.updatePrivateReportState
+);
+
 module.exports = router;
