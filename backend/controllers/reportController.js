@@ -251,12 +251,7 @@ exports.getPrivateReports = async (req, res) => {
             filter.categoria = categoria;
         }
 
-        // Cittadini/proprietari vedono le private in stati "vivi": IN_VERIFICA (validabili) e APERTA (validate).
-        if (req.loggedUser.ruolo !== 'operatore' && !stato) {
-            filter.stato = { $in: ['IN_VERIFICA', 'APERTA'] };
-        }
-
-        // recupera tutte le segnalazioni relative a una struttura privata
+        // valido subito strutturaAssociata, serve per decidere lo scope
         const { strutturaAssociata } = req.query;
         if (strutturaAssociata) {
             const HEX24 = /^[a-fA-F0-9]{24}$/;
@@ -269,6 +264,53 @@ exports.getPrivateReports = async (req, res) => {
             filter.strutturaAssociata = strutturaAssociata;
         }
 
+        let isOwnerOfStructure = false;
+        if (req.loggedUser.ruolo === 'proprietario' && strutturaAssociata) {
+            const struttura = await StrutturaPrivata
+                .findById(strutturaAssociata)
+                .select('proprietario')
+                .lean();
+            if (struttura && struttura.proprietario.toString() === req.loggedUser.userId) {
+                isOwnerOfStructure = true;
+            }
+        }
+
+        const { proprietario } = req.query;
+        if (proprietario) {
+            const HEX24 = /^[a-fA-F0-9]{24}$/;
+            if (!HEX24.test(proprietario)) {
+                return res.status(400).json({
+                    error: 'Validazione fallita',
+                    details: [{ field: 'proprietario', message: 'ObjectId non valido' }]
+                });
+            }
+            // autorizzazione: puoi filtrare solo per il TUO id (anti-IDOR)
+            if (proprietario !== req.loggedUser.userId) {
+                return res.status(403).json({
+                    error: 'Accesso negato. Puoi filtrare solo per il tuo id.'
+                });
+            }
+            // recupero gli _id delle strutture possedute e li uso in $in
+            const mieStrutture = await StrutturaPrivata
+                .find({ proprietario })
+                .select('_id')
+                .lean();
+            const ids = mieStrutture.map(s => s._id);
+            // se non possiede strutture, nessuna privata può corrispondere
+            filter.strutturaAssociata = { $in: ids };
+        }
+
+        const isOwnerQuery = (req.loggedUser.ruolo === 'proprietario'
+            && proprietario === req.loggedUser.userId);
+
+        const puoVedereTutto = req.loggedUser.ruolo === 'operatore'
+            || isOwnerOfStructure
+            || isOwnerQuery;
+
+        if (!puoVedereTutto && !stato) {
+            filter.stato = { $in: ['IN_VERIFICA', 'APERTA'] };
+        }
+
         const segnalazioni = await Segnalazione.find(filter).select('-__v -bloccaModifica -listaValidatori -numAnomalie').lean();
 
         return res.status(200).json({
@@ -278,6 +320,71 @@ exports.getPrivateReports = async (req, res) => {
 
     } catch (err) {
         console.error('GET /privateReports', err);
+        return res.status(500).json({ error: 'Errore interno del server' });
+    }
+};
+
+// PATCH /api/v1/privateReports/:id/stato
+exports.updatePrivateReportState = async (req, res) => {
+    try {
+        const { id } = req.params;
+        const { stato } = req.body || {};
+
+        const HEX24 = /^[a-fA-F0-9]{24}$/;
+        if (!HEX24.test(id)) {
+            return res.status(400).json({
+                error: 'Validazione fallita',
+                details: [{ field: 'id', message: 'ObjectId non valido' }]
+            });
+        }
+
+        if (stato !== 'RISOLTA') {
+            return res.status(400).json({
+                error: 'Validazione fallita',
+                details: [{ field: 'stato', message: 'transizione non ammessa: ammesso solo "RISOLTA"' }]
+            });
+        }
+
+        const segnalazione = await SegnalazionePrivata.findById(id);
+        if (!segnalazione) {
+            return res.status(404).json({ error: 'Segnalazione privata non trovata' });
+        }
+
+        // ownership: il proprietario loggato deve possedere la struttura associata
+        const struttura = await StrutturaPrivata.findById(segnalazione.strutturaAssociata);
+        if (!struttura) {
+            return res.status(404).json({ error: 'Struttura associata non trovata' });
+        }
+        if (struttura.proprietario.toString() !== req.loggedUser.userId) {
+            return res.status(403).json({
+                error: 'Accesso negato. Puoi chiudere solo le segnalazioni sulle tue strutture.'
+            });
+        }
+
+        if (!['IN_VERIFICA', 'APERTA'].includes(segnalazione.stato)) {
+            return res.status(409).json({
+                error: `Transizione non valida: una segnalazione in stato ${segnalazione.stato} non può essere chiusa.`
+            });
+        }
+
+        segnalazione.stato = 'RISOLTA';
+        await segnalazione.save();
+
+        console.log(`Segnalazione privata ${id} chiusa (RISOLTA) dal proprietario ${req.loggedUser.userId}`);
+
+        return res.status(200).json({
+            message: 'Segnalazione contrassegnata come risolta',
+            segnalazione
+        });
+
+    } catch (err) {
+        console.error('[PATCH /privateReports/:id/stato]', err);
+        if (err.name === 'ValidationError') {
+            const details = Object.values(err.errors).map(e => ({
+                field: e.path, message: e.message
+            }));
+            return res.status(400).json({ error: 'Validazione fallita', details });
+        }
         return res.status(500).json({ error: 'Errore interno del server' });
     }
 };
