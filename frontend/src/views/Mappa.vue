@@ -208,8 +208,22 @@ async function caricaSegnalazioni() {
       const [lng, lat] = seg.geolocalizzazione.coordinates;
 
       // contenuto popup: come prima (categoria + descrizione).
-      let html = `<b>${seg.categoria}</b><br>${seg.descrizione}`;
-      
+      const categoriaLabel = escapeHtml(String(seg.categoria).replaceAll('_', ' '));
+      let html = `<div class="popup-cat">${categoriaLabel}</div>`;
+      html += `<div class="popup-desc">${escapeHtml(seg.descrizione)}</div>`;
+
+      // galleria foto: solo se presenti
+      if (Array.isArray(seg.foto) && seg.foto.length > 0) {
+        const thumbs = seg.foto.map(p => {
+          const src = escapeHtml(p);
+          return `<img src="${src}" alt="foto segnalazione" class="popup-thumb"
+            loading="lazy"
+            onclick="window.open(this.src,'_blank')"
+            onerror="this.style.display='none'">`;
+        }).join('');
+        html += `<div class="popup-gallery">${thumbs}</div>`;
+      }
+
       if (seg.tipo === 'privata') {
         const statoLabel = seg.stato === 'APERTA' ? 'Confermata' : 'In verifica';
         const coloreStato = seg.stato === 'APERTA' ? '#059669' : '#d97706';

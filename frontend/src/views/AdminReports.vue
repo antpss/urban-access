@@ -130,36 +130,67 @@
             </tr>
           </thead>
           <tbody>
-            <tr v-for="s in segnalazioni" :key="s._id"
-              class="border-b border-slate-50 last:border-0 hover:bg-slate-50/60 transition-colors">
-              <td class="px-4 py-3 text-slate-700 max-w-md">
-                <p class="line-clamp-2">{{ s.descrizione }}</p>
-              </td>
-              <td class="px-4 py-3">
-                <span class="inline-block px-2.5 py-1 rounded-full text-xs font-semibold bg-slate-100 text-slate-600">
-                  {{ etichettaCategoria(s.categoria) }}
-                </span>
-              </td>
-              <td class="px-4 py-3">
-                <span class="inline-block px-2.5 py-1 rounded-full text-xs font-bold"
-                  :class="s.stato === 'PRESA_IN_CARICO' ? 'bg-amber-100 text-amber-700' : 'bg-emerald-100 text-emerald-700'">
-                  {{ s.stato }}
-                </span>
-              </td>
-              <td class="px-4 py-3 text-slate-500 whitespace-nowrap">{{ formattaData(s.createdAt) }}</td>
-              <td class="px-4 py-3 text-slate-400 text-xs whitespace-nowrap">
-                {{ s.geolocalizzazione?.coordinates?.[1]?.toFixed(5) }}, {{ s.geolocalizzazione?.coordinates?.[0]?.toFixed(5) }}
-              </td>
-              <td class="px-4 py-3 whitespace-nowrap">
-                <!-- bottone solo sulle APERTA: una PRESA_IN_CARICO non è ri-prendibile (il backend darebbe 409) -->
-                <button v-if="s.stato === 'APERTA'" type="button"
-                  @click="prendiInCarico(s)" :disabled="presaInCaricoLoading === s._id"
-                  class="px-3 py-1.5 text-xs font-bold rounded-lg text-white bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-600 hover:to-teal-600 shadow-sm disabled:opacity-50 disabled:cursor-not-allowed transition-all">
-                  {{ presaInCaricoLoading === s._id ? 'Attendere…' : 'Prendi in carico' }}
-                </button>
-                <span v-else class="text-xs font-semibold text-amber-600">In carico</span>
-              </td>
-            </tr>
+            <template v-for="s in segnalazioni" :key="s._id">
+              <tr @click="toggleRiga(s._id)"
+                class="border-b border-slate-50 last:border-0 hover:bg-slate-50/60 transition-colors cursor-pointer">
+                <td class="px-4 py-3 text-slate-700 max-w-md">
+                  <div class="flex items-center gap-2">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 text-slate-400 shrink-0 transition-transform"
+                      :class="rigaEspansa === s._id ? 'rotate-90' : ''"
+                      fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" />
+                    </svg>
+                    <p class="line-clamp-2">{{ s.descrizione }}</p>
+                  </div>
+                </td>
+                <td class="px-4 py-3">
+                  <span class="inline-block px-2.5 py-1 rounded-full text-xs font-semibold bg-slate-100 text-slate-600">
+                    {{ etichettaCategoria(s.categoria) }}
+                  </span>
+                </td>
+                <td class="px-4 py-3">
+                  <span class="inline-block px-2.5 py-1 rounded-full text-xs font-bold"
+                    :class="s.stato === 'PRESA_IN_CARICO' ? 'bg-amber-100 text-amber-700' : 'bg-emerald-100 text-emerald-700'">
+                    {{ s.stato }}
+                  </span>
+                </td>
+                <td class="px-4 py-3 text-slate-500 whitespace-nowrap">{{ formattaData(s.createdAt) }}</td>
+                <td class="px-4 py-3 text-slate-400 text-xs whitespace-nowrap">
+                  {{ s.geolocalizzazione?.coordinates?.[1]?.toFixed(5) }}, {{ s.geolocalizzazione?.coordinates?.[0]?.toFixed(5) }}
+                </td>
+                <td class="px-4 py-3 whitespace-nowrap">
+                  <!-- @click.stop: il click sul bottone NON deve espandere/chiudere la riga -->
+                  <button v-if="s.stato === 'APERTA'" type="button"
+                    @click.stop="prendiInCarico(s)" :disabled="presaInCaricoLoading === s._id"
+                    class="px-3 py-1.5 text-xs font-bold rounded-lg text-white bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-600 hover:to-teal-600 shadow-sm disabled:opacity-50 disabled:cursor-not-allowed transition-all">
+                    {{ presaInCaricoLoading === s._id ? 'Attendere…' : 'Prendi in carico' }}
+                  </button>
+                  <span v-else class="text-xs font-semibold text-amber-600">In carico</span>
+                </td>
+              </tr>
+
+              <!-- riga-tendina: foto allegate dal cittadino -->
+              <tr v-if="rigaEspansa === s._id" class="bg-slate-50/40">
+                <td :colspan="colonne.length" class="px-4 py-4">
+                  <div v-if="s.foto && s.foto.length > 0">
+                    <p class="text-xs font-bold text-slate-500 uppercase tracking-wide mb-2">
+                      Foto allegate ({{ s.foto.length }})
+                    </p>
+                    <div class="flex flex-wrap gap-3">
+                      <a v-for="(f, i) in s.foto" :key="i" :href="f" target="_blank" rel="noopener"
+                        class="block">
+                        <img :src="f" alt="foto segnalazione"
+                          class="w-28 h-28 object-cover rounded-xl border border-slate-200 shadow-sm hover:scale-105 transition-transform"
+                          loading="lazy" @error="($event.target.style.display='none')" />
+                      </a>
+                    </div>
+                  </div>
+                  <p v-else class="text-sm text-slate-400 font-medium italic">
+                    Nessuna foto allegata a questa segnalazione.
+                  </p>
+                </td>
+              </tr>
+            </template>
           </tbody>
         </table>
       </div>
@@ -248,6 +279,12 @@ const errore = ref('');
 //stato dell'azione "prendi in carico": contiene l'_id della riga in elaborazione
 //(o '' se nessuna), così disabilito solo il bottone cliccato
 const presaInCaricoLoading = ref('');
+const rigaEspansa = ref('');
+
+function toggleRiga(id) {
+  rigaEspansa.value = rigaEspansa.value === id ? '' : id;
+}
+
 const messaggioAzione = ref('');
 const messaggioAzioneErrore = ref(false);
 

@@ -156,7 +156,31 @@
                       {{ seg.stato === 'APERTA' ? 'Confermata' : 'In verifica' }}
                     </span>
                   </div>
-                  <p class="text-sm text-slate-600 leading-snug mb-3">{{ seg.descrizione }}</p>
+
+                  <!-- descrizione cliccabile: espande/chiude le foto -->
+                  <button type="button" @click="toggleFoto(seg._id)"
+                    class="w-full text-left flex items-start gap-1.5 mb-3 group">
+                    <svg xmlns="http://www.w3.org/2000/svg"
+                      class="h-3.5 w-3.5 mt-1 text-slate-400 shrink-0 transition-transform group-hover:text-emerald-600"
+                      :class="segEspansa === seg._id ? 'rotate-90' : ''"
+                      fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" />
+                    </svg>
+                    <span class="text-sm text-slate-600 leading-snug">{{ seg.descrizione }}</span>
+                  </button>
+
+                  <!-- tendina foto -->
+                  <div v-if="segEspansa === seg._id" class="mb-3 pl-5">
+                    <div v-if="seg.foto && seg.foto.length > 0" class="flex flex-wrap gap-2">
+                      <a v-for="(f, i) in seg.foto" :key="i" :href="f" target="_blank" rel="noopener" class="block">
+                        <img :src="f" alt="foto segnalazione"
+                          class="w-20 h-20 object-cover rounded-lg border border-slate-200 shadow-sm hover:scale-105 transition-transform"
+                          loading="lazy" @error="($event.target.style.display='none')" />
+                      </a>
+                    </div>
+                    <p v-else class="text-xs text-slate-400 italic">Nessuna foto allegata.</p>
+                  </div>
+
                   <button type="button"
                     :disabled="chiusuraInCorso === seg._id"
                     @click="chiudiSegnalazione(seg)"
@@ -239,6 +263,12 @@ const loadingReport = ref(false);
 const erroreReport = ref('');
  
 const chiusuraInCorso = ref(null);
+const segEspansa = ref(null);
+
+function toggleFoto(id) {
+  segEspansa.value = segEspansa.value === id ? null : id;
+}
+
 const bannerMsg = ref('');
 
 const isFormStrutturaOpen = ref(false);

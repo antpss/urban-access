@@ -35,7 +35,6 @@
       </div>
     </header>
 
-    <!-- barra filtri -->
     <div class="shrink-0 px-6 py-4 bg-white/80 backdrop-blur border-b border-slate-100">
       <div class="flex flex-wrap items-end gap-3">
         <div class="flex flex-col">
@@ -68,7 +67,6 @@
       </div>
     </div>
 
-    <!-- corpo: tabella -->
     <main class="flex-1 overflow-auto px-6 py-4">
       <div v-if="caricamento" class="flex items-center justify-center h-40 text-slate-400 text-sm font-semibold">
         Caricamento…
@@ -95,37 +93,64 @@
             </tr>
           </thead>
           <tbody>
-            <tr v-for="s in segnalazioni" :key="s._id"
-              class="border-b border-slate-50 last:border-0 hover:bg-slate-50/60 transition-colors">
-              <td class="px-4 py-3 text-slate-700 max-w-md">
-                <p class="line-clamp-2">{{ s.descrizione }}</p>
-              </td>
-              <td class="px-4 py-3">
-                <span class="inline-block px-2.5 py-1 rounded-full text-xs font-semibold bg-slate-100 text-slate-600">
-                  {{ etichettaCategoria(s.categoria) }}
-                </span>
-              </td>
-              <td class="px-4 py-3">
-                <span class="inline-block px-2.5 py-1 rounded-full text-xs font-bold"
-                  :class="classeStato(s.stato)">
-                  {{ s.stato }}
-                </span>
-              </td>
-              <!-- score/soglia: mostra perché una segnalazione è ancora sotto-soglia (giustifica la forzatura) -->
-              <td class="px-4 py-3 text-slate-500 whitespace-nowrap">
-                <span v-if="s.scoreAssociato != null">
-                  {{ s.scoreAssociato }} / {{ s.sogliaValidazione }}
-                </span>
-                <span v-else class="text-slate-300">—</span>
-              </td>
-              <td class="px-4 py-3 text-slate-500 whitespace-nowrap">{{ formattaData(s.createdAt) }}</td>
-              <td class="px-4 py-3 whitespace-nowrap">
-                <button type="button" @click="apriModal(s)"
-                  class="px-3 py-1.5 text-xs font-bold rounded-lg text-white bg-gradient-to-r from-indigo-500 to-violet-500 hover:from-indigo-600 hover:to-violet-600 shadow-sm transition-all">
-                  Forza stato
-                </button>
-              </td>
-            </tr>
+            <template v-for="s in segnalazioni" :key="s._id">
+              <tr @click="toggleRiga(s._id)"
+                class="border-b border-slate-50 last:border-0 hover:bg-slate-50/60 transition-colors cursor-pointer">
+                <td class="px-4 py-3 text-slate-700 max-w-md">
+                  <div class="flex items-center gap-2">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 text-slate-400 shrink-0 transition-transform"
+                      :class="rigaEspansa === s._id ? 'rotate-90' : ''"
+                      fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" />
+                    </svg>
+                    <p class="line-clamp-2">{{ s.descrizione }}</p>
+                  </div>
+                </td>
+                <td class="px-4 py-3">
+                  <span class="inline-block px-2.5 py-1 rounded-full text-xs font-semibold bg-slate-100 text-slate-600">
+                    {{ etichettaCategoria(s.categoria) }}
+                  </span>
+                </td>
+                <td class="px-4 py-3">
+                  <span class="inline-block px-2.5 py-1 rounded-full text-xs font-bold" :class="classeStato(s.stato)">
+                    {{ s.stato }}
+                  </span>
+                </td>
+                <td class="px-4 py-3 text-slate-500 whitespace-nowrap">
+                  <span v-if="s.scoreAssociato != null">
+                    {{ s.scoreAssociato }} / {{ s.sogliaValidazione }}
+                  </span>
+                  <span v-else class="text-slate-300">—</span>
+                </td>
+                <td class="px-4 py-3 text-slate-500 whitespace-nowrap">{{ formattaData(s.createdAt) }}</td>
+                <td class="px-4 py-3 whitespace-nowrap">
+                  <button type="button" @click.stop="apriModal(s)"
+                    class="px-3 py-1.5 text-xs font-bold rounded-lg text-white bg-gradient-to-r from-indigo-500 to-violet-500 hover:from-indigo-600 hover:to-violet-600 shadow-sm transition-all">
+                    Forza stato
+                  </button>
+                </td>
+              </tr>
+
+              <tr v-if="rigaEspansa === s._id" class="bg-slate-50/40">
+                <td colspan="6" class="px-4 py-4">
+                  <div v-if="s.foto && s.foto.length > 0">
+                    <p class="text-xs font-bold text-slate-500 uppercase tracking-wide mb-2">
+                      Foto allegate ({{ s.foto.length }})
+                    </p>
+                    <div class="flex flex-wrap gap-3">
+                      <a v-for="(f, i) in s.foto" :key="i" :href="f" target="_blank" rel="noopener" class="block">
+                        <img :src="f" alt="foto segnalazione"
+                          class="w-28 h-28 object-cover rounded-xl border border-slate-200 shadow-sm hover:scale-105 transition-transform"
+                          loading="lazy" @error="($event.target.style.display='none')" />
+                      </a>
+                    </div>
+                  </div>
+                  <p v-else class="text-sm text-slate-400 font-medium italic">
+                    Nessuna foto allegata a questa segnalazione.
+                  </p>
+                </td>
+              </tr>
+            </template>
           </tbody>
         </table>
       </div>
@@ -224,6 +249,12 @@ const modalStato = ref('APERTA');
 const modalMotivazione = ref('');
 const modalErrore = ref('');
 const modalLoading = ref(false);
+
+const rigaEspansa = ref('');
+
+function toggleRiga(id) {
+  rigaEspansa.value = rigaEspansa.value === id ? '' : id;
+}
 
 function etichettaCategoria(value) {
   const c = categoriePrivate.find(x => x.value === value);
