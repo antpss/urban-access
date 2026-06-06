@@ -806,7 +806,7 @@ paths:
         '401':
           $ref: '#/components/responses/Unauthorized'
         '403':
-          description: Ruolo non autorizzato (solo cittadini)
+          $ref: '#/components/responses/Forbidden'
         '404':
           description: Struttura associata non trovata
 
@@ -852,6 +852,19 @@ paths:
             type: string
             pattern: '^[a-fA-F0-9]{24}$'
           example: "65b4f4e7b8d9c1f4a2e5b6a9"
+        - name: proprietario
+          in: query
+          required: false
+          description: |
+            Filtra le segnalazioni private su tutte le strutture del proprietario
+            indicato (ObjectId). Autorizzato solo se coincide con l'utente
+            autenticato (`403` altrimenti). In questo caso vengono restituiti
+            tutti gli stati, incluse le `RISOLTA` (dashboard proprietario, US17).
+          schema:
+            type: string
+            pattern: '^[a-fA-F0-9]{24}$'
+          example: "65a3f4e7b8d9c1f4a2e5b6c7"
+
       responses:
         '200':
           description: Lista segnalazioni private filtrate
@@ -920,6 +933,136 @@ paths:
           description: Segnalazione privata non trovata
         '409':
           description: Già validata da questo utente, o segnalazione non validabile nello stato corrente
+  /privateReports/{id}/stato:
+    patch:
+      tags:
+        - Segnalazioni
+      summary: Chiude (risolve) una segnalazione privata sulla propria struttura
+      operationId: aggiornaStatoSegnalazionePrivata
+      description: |
+        Permette a un `proprietario` di contrassegnare come `RISOLTA` una
+        segnalazione privata relativa a una **propria** struttura (US17).
+        Tipicamente l'intervento è stato eseguito (es. installata la rampa) e
+        il proprietario chiude la segnalazione.
+
+        **Transizione di stato consentita:** unicamente da `IN_VERIFICA` o
+        `APERTA` verso `RISOLTA`. Per ora `RISOLTA` è l'unico valore accettato
+        nel body; qualunque altro valore produce `400`.
+
+        **Effetti collaterali server-side:** una volta `RISOLTA`, la
+        segnalazione esce dalla mappa (`visibile = false`) e viene bloccata in
+        scrittura (`bloccaModifica = true`), impedendo ulteriori validazioni
+        crowdsourcing. Questi campi sono derivati: il client non li invia.
+
+        **Scope e autorizzazione:** opera solo su segnalazioni di tipo
+        `privata`. Un `id` che punta a una pubblica produce `404`. Oltre al
+        ruolo `proprietario`, è verificata l'**ownership**: il proprietario
+        autenticato deve possedere la struttura associata alla segnalazione,
+        altrimenti `403` (anti-IDOR, identità letta dal JWT).
+
+        **Conflitto di stato:** una segnalazione già `RISOLTA`, `PRESA_IN_CARICO`
+        o `ARCHIVIATA` non è richiudibile e produce `409`.
+
+        **Semantica PATCH:** modifica parziale della risorsa esistente (cambia
+        `stato` e i campi derivati). Non idempotente per dominio: la seconda
+        chiamata fallisce con `409` perché lo stato non è più chiudibile.
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: ObjectId della segnalazione privata da chiudere.
+          schema:
+            type: string
+            pattern: '^[a-fA-F0-9]{24}$'
+          example: 65b1a2c3d4e5f6a7b8c9d0e1
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [stato]
+              properties:
+                stato:
+                  type: string
+                  enum: [RISOLTA]
+                  description: Stato di destinazione. Unico valore ammesso al momento.
+            example:
+              stato: RISOLTA
+      responses:
+        '200':
+          description: Segnalazione contrassegnata come risolta.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message: { type: string }
+                  segnalazione:
+                    $ref: '#/components/schemas/SegnalazionePrivata'
+              example:
+                message: Segnalazione contrassegnata come risolta
+                segnalazione:
+                  _id: 65b1a2c3d4e5f6a7b8c9d0e1
+                  tipo: privata
+                  descrizione: Ingresso con gradino non superabile in carrozzina
+                  categoria: mancanza_rampa
+                  stato: RISOLTA
+                  strutturaAssociata: 65b4f4e7b8d9c1f4a2e5b6a9
+                  visibile: false
+                  bloccaModifica: true
+                  autore: 65a3f4e7b8d9c1f4a2e5b6c7
+                  createdAt: '2026-05-15T09:20:00.000Z'
+                  updatedAt: '2026-05-22T16:45:00.000Z'
+        '400':
+          description: |
+            `id` non valido, oppure `stato` assente o diverso da `RISOLTA`
+            (transizione non ammessa).
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ValidationError'
+              example:
+                error: Validazione fallita
+                details:
+                  - field: stato
+                    message: 'transizione non ammessa: ammesso solo "RISOLTA"'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          description: |
+            Ruolo non autorizzato (solo `proprietario`) oppure la struttura
+            associata non appartiene al proprietario autenticato.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                error: Accesso negato. Puoi chiudere solo le segnalazioni sulle tue strutture.
+        '404':
+          description: |
+            Segnalazione privata non trovata (inesistente o di tipo pubblico),
+            oppure struttura associata non trovata.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                error: Segnalazione privata non trovata
+        '409':
+          description: |
+            Conflitto di stato. La segnalazione esiste ma non è in uno stato
+            chiudibile (`IN_VERIFICA` o `APERTA`).
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                error: 'Transizione non valida: una segnalazione in stato RISOLTA non può essere chiusa.'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
   /structures:
     post:
       tags:
