@@ -85,6 +85,11 @@ const strutturaPrivataSchema = new mongoose.Schema({
         default: 0,
         min: 0
     },
+    numAnomalieStruttura: {
+        type: Number,
+        default: 0,
+        min: 0
+    },
     accessibilita: {
         type: accessibilitaSchema,
         default: () => ({})    //genera il sottodoc con tutti i default false
