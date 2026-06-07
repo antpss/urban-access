@@ -23,6 +23,14 @@
           Private
         </button>
 
+        <button type="button" @click="vaiAlleStrutture"
+          class="flex items-center gap-2 px-3.5 py-2 text-sm font-bold rounded-xl text-white bg-gradient-to-r from-sky-500 to-cyan-500 hover:from-sky-600 hover:to-cyan-600 shadow-md shadow-sky-200 transition-all">
+          <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
+          </svg>
+          Strutture
+        </button>
+
         <!-- separatore tra azione di navigazione e controlli account -->
         <div class="h-6 w-px bg-slate-200"></div>
 
@@ -68,6 +76,10 @@ const vaiAllaDashboard = () => {
 
 const vaiAllePrivate = () => {
   router.push({ name: 'AdminPrivateReports' });
+};
+
+const vaiAlleStrutture = () => {
+  router.push({ name: 'AdminStructures' });
 };
 
 </script>
