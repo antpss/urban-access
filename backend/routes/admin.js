@@ -34,4 +34,11 @@ router.patch('/privateReports/:id',
     adminController.forzaStatoPrivata
 );
 
+//GET /api/v1/admin/structures
+router.get('/structures',
+    verifyToken,
+    requireRole('operatore'),
+    adminController.getStructuresDashboard
+);
+
 module.exports = router;

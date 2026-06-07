@@ -407,3 +407,74 @@ exports.forzaStatoPrivata = async (req, res) => {
         return res.status(500).json({ error: 'Errore interno del server' });
     }
 };
+
+// GET /api/v1/admin/structures?categoria=&minAnomalie=&orderBy=&order=
+exports.getStructuresDashboard = async (req, res) => {
+    try {
+        const { categoria, minAnomalie, orderBy, order } = req.query;
+
+        const filter = {};
+
+        //--- filtro categoria (enum struttura) ---
+        const CATEGORIE_STRUTTURA = [
+            'ristorante', 'bar', 'negozio', 'ufficio',
+            'hotel', 'studio_medico', 'palestra', 'altro'
+        ];
+        if (categoria) {
+            if (!CATEGORIE_STRUTTURA.includes(categoria)) {
+                return res.status(400).json({
+                    error: 'Validazione fallita',
+                    details: [{ field: 'categoria', message: `valore non ammesso. Ammessi: ${CATEGORIE_STRUTTURA.join(', ')}` }]
+                });
+            }
+            filter.categoria = categoria;
+        }
+
+        //filtro minAnomalie: solo strutture con almeno N anomalie (per isolare i casi critici)
+        if (minAnomalie !== undefined) {
+            const n = parseInt(minAnomalie, 10);
+            if (Number.isNaN(n) || n < 0) {
+                return res.status(400).json({
+                    error: 'Validazione fallita',
+                    details: [{ field: 'minAnomalie', message: 'deve essere un intero >= 0' }]
+                });
+            }
+            filter.numAnomalieStruttura = { $gte: n };
+        }
+
+        //ordinamento (whitelist)
+        const ORDER_BY_AMMESSI = ['numAnomalieStruttura', 'numForzature', 'nome', 'createdAt'];
+        const campoOrdinamento = orderBy || 'numAnomalieStruttura';
+        if (!ORDER_BY_AMMESSI.includes(campoOrdinamento)) {
+            return res.status(400).json({
+                error: 'Validazione fallita',
+                details: [{ field: 'orderBy', message: `valore non ammesso. Ammessi: ${ORDER_BY_AMMESSI.join(', ')}` }]
+            });
+        }
+        let direzione = -1; //default desc: i più problematici in cima
+        if (order) {
+            if (order !== 'asc' && order !== 'desc') {
+                return res.status(400).json({
+                    error: 'Validazione fallita',
+                    details: [{ field: 'order', message: 'valore non ammesso. Ammessi: asc, desc' }]
+                });
+            }
+            direzione = order === 'asc' ? 1 : -1;
+        }
+
+        const strutture = await StrutturaPrivata
+            .find(filter)
+            .select('-__v')
+            .sort({ [campoOrdinamento]: direzione })
+            .lean();
+
+        return res.status(200).json({
+            count: strutture.length,
+            strutture
+        });
+
+    } catch (err) {
+        console.error('GET /admin/structures', err);
+        return res.status(500).json({ error: 'Errore interno del server' });
+    }
+};

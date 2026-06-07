@@ -9,6 +9,7 @@ import AdminReports from '../views/AdminReports.vue';
 import Profilo from '../views/Profilo.vue';
 import { isAuthenticated, getUser } from '../services/auth';
 import AdminPrivateReports from '../views/AdminPrivateReports.vue';
+import AdminStructures from '../views/AdminStructures.vue';
 
 const routes = [
     { path: '/', redirect: '/login' },
@@ -61,6 +62,13 @@ const routes = [
         path: '/home/operatore/private-reports',
         name: 'AdminPrivateReports',
         component: AdminPrivateReports,
+        meta: { requiresAuth: true, role: 'operatore' }
+    },
+    {
+        //backoffice strutture private: monitoraggio anomalie (US23bis)
+        path: '/home/operatore/structures',
+        name: 'AdminStructures',
+        component: AdminStructures,
         meta: { requiresAuth: true, role: 'operatore' }
     },
     {

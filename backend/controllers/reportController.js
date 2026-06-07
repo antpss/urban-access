@@ -132,6 +132,21 @@ exports.createPrivateReport = async (req, res) => {
         // verifica persistenza della segnalazione privata
         await nuovaSegnalazione.save();
 
+        //rilevamento ricorrenza almeno una segnalazione RISOLTA con la stessa categoria
+        const esisteRisoltaStessaCategoria = await SegnalazionePrivata.exists({
+            strutturaAssociata,
+            categoria,
+            stato: 'RISOLTA',
+            _id: { $ne: nuovaSegnalazione._id }
+        });
+
+        if (esisteRisoltaStessaCategoria) {
+            await StrutturaPrivata.findByIdAndUpdate(
+                strutturaAssociata,
+                { $inc: { numAnomalieStruttura: 1 } }
+            );
+        }
+
         // aggiorna lo storico segnalazioni del cittadino (ogni segnalazione è unica)
         await Cittadino.findByIdAndUpdate(
             req.loggedUser.userId,
