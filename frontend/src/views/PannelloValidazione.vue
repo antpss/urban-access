@@ -65,7 +65,7 @@
                  hover:bg-rose-50 hover:border-rose-300
                  disabled:border-slate-200 disabled:text-slate-400 disabled:cursor-not-allowed
                  transition-all">
-          <span v-if="report.stato === 'APERTA'">Smentisci (non più valida)</span>
+          <span v-if="report.stato === 'APERTA'">Smentisci (non più valido)</span>
           <span v-else>Smentisci questa segnalazione</span>
         </button>
       </div>
