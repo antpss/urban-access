@@ -13,7 +13,7 @@ const validazioneSegnalazioneSchema = new mongoose.Schema({
     },
     tipo: {
         type: String,
-        enum: ['conferma'],              
+        enum: ['conferma', 'smentita'],
         default: 'conferma'
     },
     // snapshot del peso del voto = scoreAffidabilita del validatore AL MOMENTO del voto
