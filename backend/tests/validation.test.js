@@ -1,4 +1,4 @@
-// Test suite US10
+// Test suite US10_1
 // POST /api/v1/privateReports/:id/validations
 
 const request = require('supertest');
@@ -116,7 +116,10 @@ describe('POST /api/v1/privateReports/:id/validations - US10 Conferma Segnalazio
             scoreAssociato: 2, 
             sogliaValidazione: 10,
             listaValidatori: [], 
-            save: jest.fn().mockResolvedValue(true)
+            save: jest.fn().mockImplementation(function () {
+                this.stato = this.scoreAssociato >= this.sogliaValidazione ? 'APERTA' : 'IN_VERIFICA';
+                return Promise.resolve(true);
+            })
         };
         mockFindByIdChained(SegnalazionePrivata, fakeReport);
         mockFindByIdChained(Cittadino, { _id: CITIZEN_ID, scoreAffidabilita: 3 });
@@ -144,7 +147,10 @@ describe('POST /api/v1/privateReports/:id/validations - US10 Conferma Segnalazio
             scoreAssociato: 8, //con il peso del voto supererà 10
             sogliaValidazione: 10,
             listaValidatori: [], 
-            save: jest.fn().mockResolvedValue(true)
+            save: jest.fn().mockImplementation(function () {
+                this.stato = this.scoreAssociato >= this.sogliaValidazione ? 'APERTA' : 'IN_VERIFICA';
+                return Promise.resolve(true);
+            })
         };
         
         mockFindByIdChained(SegnalazionePrivata, fakeReport);
