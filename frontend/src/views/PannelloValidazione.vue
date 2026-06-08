@@ -57,6 +57,17 @@
           <span v-else-if="haVotato">Hai gia confermato</span>
           <span v-else>Conferma questa segnalazione</span>
         </button>
+
+        <!-- Smentita: disponibile sulle segnalazioni votabili, per chi non è l'autore
+             e non ha già votato. Smentire abbassa lo score; può archiviare la segnalazione. -->
+        <button type="button" @click="smentisci" :disabled="!puoVotare || isLoading"
+          class="w-full mt-3 py-3 font-bold rounded-xl border-2 border-rose-200 text-rose-600 bg-white
+                 hover:bg-rose-50 hover:border-rose-300
+                 disabled:border-slate-200 disabled:text-slate-400 disabled:cursor-not-allowed
+                 transition-all">
+          <span v-if="report.stato === 'APERTA'">Smentisci (non più valida)</span>
+          <span v-else>Smentisci questa segnalazione</span>
+        </button>
       </div>
     </div>
   </transition>
@@ -74,7 +85,7 @@ const props = defineProps({
   report: { type: Object, default: null }
 });
 
-const emit = defineEmits(['update:modelValue', 'validated', 'score-updated']);
+const emit = defineEmits(['update:modelValue', 'validated', 'score-updated', 'archived']);
 
 const user = getUser();
 
@@ -153,6 +164,55 @@ const conferma = async () => {
     } else {
       esitoOk.value = false;
       esito.value = data.error || data.message || 'Errore durante la validazione.';
+    }
+  } catch (e) {
+    esitoOk.value = false;
+    esito.value = e.message === 'Failed to fetch' ? 'Server non raggiungibile.' : 'Errore di rete. Riprova.';
+  } finally {
+    isLoading.value = false;
+  }
+};
+
+const smentisci = async () => {
+  if (!props.report) return;
+  isLoading.value = true;
+  esito.value = '';
+  try {
+    const response = await authFetch(
+      `${API_BASE_URL}/privateReports/${props.report._id}/disputes`,
+      { method: 'POST' }
+    );
+    const data = await response.json().catch(() => ({}));
+
+    if (response.status === 201) {
+      haVotato.value = true;
+      esitoOk.value = true;
+
+      if (data.scoreAssociato != null) {
+        scoreLocale.value = data.scoreAssociato;
+        emit('score-updated', { reportId: props.report._id, scoreAssociato: data.scoreAssociato });
+      }
+
+      if (data.archiviata) {
+        esito.value = 'Segnalazione archiviata: non era più valida.';
+        emit('archived', { reportId: props.report._id });
+      } else {
+        esito.value = 'Smentita registrata.';
+        // se è retrocessa, aggiorno lo stato locale per coerenza del badge
+        if (data.statoSegnalazione) {
+          emit('score-updated', { reportId: props.report._id, scoreAssociato: data.scoreAssociato, stato: data.statoSegnalazione });
+        }
+      }
+    } else if (response.status === 409) {
+      haVotato.value = true;
+      esitoOk.value = false;
+      esito.value = data.error || 'Hai gia votato questa segnalazione.';
+    } else if (response.status === 403) {
+      esitoOk.value = false;
+      esito.value = data.error || 'Operazione non consentita.';
+    } else {
+      esitoOk.value = false;
+      esito.value = data.error || data.message || 'Errore durante la smentita.';
     }
   } catch (e) {
     esitoOk.value = false;
