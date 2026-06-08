@@ -26,6 +26,13 @@ router.post('/:id/validations',
     validationController.validatePrivateReport
 );
 
+// POST /api/v1/privateReports/:id/disputes
+router.post('/:id/disputes',
+    verifyToken,
+    requireRole('cittadino'),
+    validationController.disputePrivateReport
+);
+
 // PATCH /api/v1/privateReports/:id/stato
 router.patch('/:id/stato',
     verifyToken,
