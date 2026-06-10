@@ -47,7 +47,7 @@ info:
       appoggiandosi al servizio **Nominatim** di OpenStreetMap. Restituisce una
       lista di candidati, lasciando al client la disambiguazione.
     - `GET /routes` — calcola un percorso pedonale verso una destinazione tramite
-      il motore di routing **Valhalla** (self-hosted, costing `pedestrian`),
+      il servizio di routing pubblico **OpenRouteService** (profilo `foot-walking`),
       restituendo la geometria come GeoJSON LineString.
 
     Entrambi gli endpoint sono di **sola lettura, idempotenti e stateless**:
@@ -63,7 +63,7 @@ info:
     - **`422 Unprocessable Entity`** — la destinazione è valida ma non raggiungibile
       a piedi (punto isolato dalla rete, fuori area, oltre la distanza massima
       pedonale). Non è un guasto: semplicemente nessun percorso esiste.
-    - **`502 Bad Gateway`** — il servizio esterno (Valhalla o Nominatim) è
+    - **`502 Bad Gateway`** — il servizio esterno (OpenRouteService o Nominatim) è
       irraggiungibile o malfunzionante. Guasto reale del servizio a monte.
 
     Questa distinzione consente al client di reagire correttamente: suggerire
@@ -98,7 +98,7 @@ tags:
     description: |
       Calcolo di percorsi pedonali accessibili e geocoding di indirizzi.
       Il geocoding traduce testo libero in coordinate (Nominatim/OpenStreetMap);
-      il routing calcola il tragitto a piedi tramite motore Valhalla self-hosted.
+      il routing calcola il tragitto a piedi tramite il servizio pubblico OpenRouteService.
       Entrambi sono operazioni di sola lettura e stateless: nessun dato viene
       persistito a seguito di queste chiamate.
   - name: Admin
@@ -1600,8 +1600,8 @@ paths:
       summary: Calcola un percorso pedonale verso una destinazione
       description: |
         Calcola il tragitto pedonale dalla posizione dell'utente a una
-        destinazione, tramite motore di routing **Valhalla** self-hosted con
-        costing `pedestrian`.
+        destinazione, tramite il servizio di routing pubblico **OpenRouteService**
+        con profilo `foot-walking`.
 
         ## Origine hardcoded (fase attuale)
         In questa fase di sviluppo l'origine è **fissata al centro di Trento**
@@ -1615,9 +1615,9 @@ paths:
         distanza in metri e durata stimata in secondi.
 
         Quando il filtro profilo è attivo, la risposta include anche l'array
-        `ostacoli_esclusi` con i punti che Valhalla ha ricevuto come
-        `exclude_locations` utile al client per mostrare un indicatore visivo
-        degli ostacoli bypassati sul tracciato.
+        `ostacoli_esclusi` con i punti che il sistema ha trasformato in aree di
+        esclusione (`avoid_polygons`) inviate a OpenRouteService, utile al client
+        per mostrare un indicatore visivo degli ostacoli bypassati sul tracciato.
 
         ## Natura stateless
         Il percorso NON viene persistito: è un dato derivato e deperibile, funzione
@@ -1627,8 +1627,9 @@ paths:
         ## Filtro profilo disabilità (US11)
         Se l'utente autenticato è un `cittadino` con `profiloDisabilita` non vuoto,
         il sistema recupera automaticamente le segnalazioni attive incompatibili con
-        il suo profilo nell'area del percorso e le passa a Valhalla come
-        `exclude_locations`, così da ricalcolare il tragitto evitando quegli archi.
+        il suo profilo nell'area del percorso e le converte in poligoni di
+        esclusione (`avoid_polygons`) inviati a OpenRouteService, così da
+        ricalcolare il tragitto evitando le aree attorno a quegli ostacoli.
 
         **Il profilo viene sempre letto dal JWT** non è un parametro client.
         Un cittadino non può simulare un profilo diverso dal proprio.
@@ -1658,7 +1659,7 @@ paths:
 
         Se `profiloDisabilita` è `[]` o l'utente non è un `cittadino`, nessun
         filtro viene applicato e il comportamento è identico alla versione
-        pre-US11 (nessuna `exclude_locations` passata a Valhalla).
+        pre-US11 (nessun `avoid_polygons` passato a OpenRouteService).
 
         ## Distinzione degli errori
         - **`422`**: la destinazione è una coordinata valida ma **non raggiungibile
@@ -1686,7 +1687,8 @@ paths:
           description: |
             Percorso pedonale calcolato con successo.
             Se il filtro profilo è attivo, `ostacoli_esclusi` contiene i punti
-            passati a Valhalla come `exclude_locations`; altrimenti è un array vuoto.
+            convertiti in aree di esclusione (`avoid_polygons`) inviate a
+            OpenRouteService; altrimenti è un array vuoto.
           content:
             application/json:
               schema:
@@ -1768,7 +1770,7 @@ paths:
                       Prova a disabilitare il filtro o a scegliere una destinazione alternativa.
         '502':
           description: |
-            Il motore di routing (Valhalla) è irraggiungibile o ha restituito un
+            Il servizio di routing (OpenRouteService) è irraggiungibile o ha restituito un
             errore non riconducibile all'input. Guasto del servizio a monte.
           content:
             application/json:
@@ -2953,7 +2955,8 @@ components:
       description: |
         Rappresentazione di una segnalazione attiva esclusa dal percorso
         perché incompatibile con il profilo disabilità del cittadino.
-        Corrisponde a un punto passato a Valhalla come `exclude_locations`.
+        Corrisponde a un punto attorno al quale viene costruita un'area di
+        esclusione (`avoid_polygons`) inviata a OpenRouteService.
       required:
         - segnalazioneId
         - categoria
