@@ -166,6 +166,7 @@ Creare un file `.env` nella cartella `backend/` con le seguenti chiavi:
 PORT=8000
 MONGO_URI=<mongodb_server_url>
 JWT_SECRET=<chiave_segreta_robusta>
+ORS_API_KEY=<chiave_openRouteService>
 ```
 
 ### Installazione e avvio
