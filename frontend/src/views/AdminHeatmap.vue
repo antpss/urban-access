@@ -13,6 +13,11 @@
         <input type="checkbox" v-model="heatVisibile" class="h-4 w-4 accent-emerald-500" />
       </label>
 
+      <label class="flex items-center justify-between cursor-pointer">
+        <span class="text-sm font-semibold text-slate-600">Mostra segnalazioni pubbliche</span>
+        <input type="checkbox" v-model="pubblicheVisibile" class="h-4 w-4 accent-emerald-500" />
+      </label>
+
       <!-- filtro stato -->
       <div>
         <label class="block text-xs font-bold text-slate-500 mb-1 uppercase tracking-wide">Stato</label>
@@ -85,6 +90,9 @@ const filtroTo = ref('');
 const messaggio = ref('');
 const messaggioErrore = ref(false);
 
+const pubblicheVisibile = ref(false);
+let pubblicheLayer = null;
+
 //converte le celle del backend nel formato richiesto da leaflet.heat: [lat, lng, intensity].
 //intensità con pavimento alto: una cella con 1 segnalazione parte già nella fascia calda,
 //così la heatmap resta leggibile anche con pochi dati. con molte segnalazioni questi
@@ -93,6 +101,25 @@ function celleToHeatPoints(celle) {
   return celle.map(c => {
     const intensita = Math.min(1, 0.6 + c.count * 0.15);
     return [c.lat, c.lng, intensita];
+  });
+}
+
+function creaIconaCustom(stato) {
+  let colore = stato === 'PRESA_IN_CARICO' ? '#d1d5db' : '#0ea5e9';
+  
+  const svgPin = `
+    <svg width="28" height="42" viewBox="0 0 24 36" xmlns="http://www.w3.org/2000/svg">
+      <path d="M12 0C5.37 0 0 5.37 0 12C0 21 12 36 12 36C12 36 24 21 24 12C24 5.37 18.63 0 12 0Z" 
+            fill="${colore}" stroke="white" stroke-width="2"/>
+      <circle cx="12" cy="12" r="4" fill="white"/>
+    </svg>
+  `;
+  return L.divIcon({
+    className: 'marker-custom',
+    html: svgPin,
+    iconSize: [28, 42],
+    iconAnchor: [14, 42],
+    popupAnchor: [0, -38]
   });
 }
 
@@ -139,6 +166,8 @@ async function caricaHeatmap() {
 
     if (heatVisibile.value) heatLayer.addTo(map);
 
+    if (pubblicheVisibile.value) caricaMarkersPubblici();
+
     messaggio.value = data.count === 0
       ? 'Nessuna segnalazione attiva nei filtri selezionati.'
       : `${data.count} celle, ${punti.length ? 'heatmap aggiornata.' : ''}`;
@@ -149,11 +178,59 @@ async function caricaHeatmap() {
   }
 }
 
+async function caricaMarkersPubblici() {
+  if (!map || !pubblicheVisibile.value) return;
+
+  try {
+    const res = await authFetch(`${API_BASE_URL}/publicReports`);
+    if (!res.ok) return;
+
+    const data = await res.json();
+    const lista = data.segnalazioni || [];
+
+    pubblicheLayer.clearLayers();
+
+    const attive = lista.filter(s => ['APERTA', 'PRESA_IN_CARICO'].includes(s.stato));
+
+    attive.forEach(seg => {
+      const [lng, lat] = seg.geolocalizzazione.coordinates;
+
+      const categoriaLabel = String(seg.categoria).replaceAll('_', ' ');
+      let html = `<div class="popup-cat" style="color:#0f172a; font-weight:700; font-size:14px; text-transform:capitalize; margin-bottom:4px;">${categoriaLabel}</div>`;
+      html += `<div class="popup-desc" style="color:#334155; font-size:13px; line-height:1.5;">${seg.descrizione}</div>`;
+
+      if (seg.stato === 'PRESA_IN_CARICO') {
+        html += `<div style="margin-top:8px; font-size:11px; font-weight:700; color:#64748b">il comune ci sta lavorando</div>`;
+      }
+
+      L.marker([lat, lng], { icon: creaIconaCustom(seg.stato) })
+        .bindPopup(html, {
+          className: 'popup-moderno',
+          closeButton: false,
+          maxWidth: 280
+        })
+        .addTo(pubblicheLayer);
+    });
+  } catch (err) {
+    console.error('Errore scaricamento markers pubblici per operatore:', err);
+  }
+}
+
 //il toggle non rifà la fetch: aggiunge/rimuove solo il layer già calcolato
 watch(heatVisibile, (visibile) => {
   if (!map || !heatLayer) return;
   if (visibile) heatLayer.addTo(map);
   else map.removeLayer(heatLayer);
+});
+
+watch(pubblicheVisibile, (visibile) => {
+  if (!map || !pubblicheLayer) return;
+  if (visibile) {
+    pubblicheLayer.addTo(map);
+    caricaMarkersPubblici();
+  } else {
+    map.removeLayer(pubblicheLayer);
+  }
 });
 
 onMounted(() => {
@@ -162,6 +239,9 @@ onMounted(() => {
   L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png', {
     attribution: '© OpenStreetMap contributors, © CARTO'
   }).addTo(map);
+
+  pubblicheLayer = L.layerGroup();
+  if (pubblicheVisibile.value) pubblicheLayer.addTo(map);
 
   caricaHeatmap();
 });
