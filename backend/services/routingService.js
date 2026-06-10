@@ -1,16 +1,15 @@
-const {VALHALLA_BASE_URL, COSTING, CATEGORIA_PROFILI_INCOMPATIBILI, STATI_ATTIVI} = require('../config/routing');
+const { ORS_BASE_URL, ORS_API_KEY, ORS_PROFILE, CATEGORIA_PROFILI_INCOMPATIBILI, STATI_ATTIVI } = require('../config/routing');
 const Segnalazione = require('../models/Segnalazione');
 
-// codici Valhalla che indicano un percorso non calcolabile
-// fonte: documentazione ufficiale
-const VALHALLA_NO_PATH_CODES = [154, 170, 171, 442];
+// raggio (in gradi) del poligono di esclusione costruito attorno a ogni ostacolo.
+// ~0.00015 gradi ≈ 15-17 m: abbastanza per forzare ORS a deviare dall'arco
+// senza chiudere interi quartieri. Valore di dominio, regolabile.
+const AVOID_RADIUS = 0.00015;
 
-
-//recupera dal db le segnalazioni attive che sono incompatibili con il profilo disabilita del cittadino all'interno della bounding box definita tra l'origine e la destinazione
+//INVARIATA rispetto alla versione Valhalla: logica DB pura, indipendente dal motore.
 async function getOstacoliIncompatibili(profiloDisabilita, origin, destination) {
   if (!profiloDisabilita || profiloDisabilita.length === 0) return [];
 
-  //categorie che bloccano almeno uno dei profili del cittadino
   const categorieIncompatibili = Object.entries(CATEGORIA_PROFILI_INCOMPATIBILI)
     .filter(([, profiliBloccati]) =>
       profiliBloccati.some(p => profiloDisabilita.includes(p))
@@ -19,32 +18,21 @@ async function getOstacoliIncompatibili(profiloDisabilita, origin, destination) 
 
   if (categorieIncompatibili.length === 0) return [];
 
-  //bounding box che contiene sia l'origine che la destinazione
-  //con un margine di circa 200m (circa 0.002 gradi) per vedere ostacoli anche ai bordi del percorso
   const MARGIN = 0.002;
   const minLng = Math.min(origin.lng, destination.lng) - MARGIN;
   const minLat = Math.min(origin.lat, destination.lat) - MARGIN;
   const maxLng = Math.max(origin.lng, destination.lng) + MARGIN;
   const maxLat = Math.max(origin.lat, destination.lat) + MARGIN;
 
-  //query a mongodb con $geoWithin
   const segnalazioni = await Segnalazione.find({
-    categoria:        { $in: categorieIncompatibili },
-    stato:            { $in: STATI_ATTIVI },
-
-    //per le private include solo quelle attive che sono state valiidate dalla community
-    //quelle pubbliche invece le include tutte
+    categoria: { $in: categorieIncompatibili },
+    stato:     { $in: STATI_ATTIVI },
     $or: [
       { tipo: 'pubblica' },
       { tipo: 'privata', visibile: true },
     ],
     geolocalizzazione: {
-      $geoWithin: {
-        $box: [
-          [minLng, minLat],
-          [maxLng, maxLat],
-        ],
-      },
+      $geoWithin: { $box: [[minLng, minLat], [maxLng, maxLat]] },
     },
   }).select('_id categoria tipo geolocalizzazione').lean();
 
@@ -57,35 +45,56 @@ async function getOstacoliIncompatibili(profiloDisabilita, origin, destination) 
   }));
 }
 
-// calcola un percorso pedonale tra due punti usando Valhalla
-// origine e destinazione hanno formato {lng, lat}
+// costruisce un piccolo quadrato (poligono GeoJSON) attorno a un punto.
+// ORS evita AREE, non punti: ogni ostacolo Valhalla diventa un poligono qui.
+function ostacoloToPolygon(o) {
+  const r = AVOID_RADIUS;
+  // anello chiuso (primo == ultimo vertice), ordine [lng, lat]
+  return [[
+    [o.lng - r, o.lat - r],
+    [o.lng + r, o.lat - r],
+    [o.lng + r, o.lat + r],
+    [o.lng - r, o.lat + r],
+    [o.lng - r, o.lat - r],
+  ]];
+}
+
+// calcola un percorso pedonale tra due punti usando OpenRouteService.
+// firma e formato di ritorno IDENTICI alla versione Valhalla.
 async function calculateRoute(origin, destination, ostacoli) {
     const body = {
-        locations: [
-            {lon: origin.lng, lat: origin.lat},
-            {lon: destination.lng, lat: destination.lat}
+        // ORS vuole [lng, lat], stesso ordine GeoJSON
+        coordinates: [
+            [origin.lng, origin.lat],
+            [destination.lng, destination.lat],
         ],
-        costing: COSTING,
-        directions_options: {units: 'kilometers'}
     };
 
-
+    // traduzione exclude_locations (punti) -> avoid_polygons (aree)
     if (ostacoli.length > 0) {
-        body.exclude_locations = ostacoli.map(o => ({ lon: o.lng, lat: o.lat }));
+        body.options = {
+            avoid_polygons: {
+                type: 'MultiPolygon',
+                coordinates: ostacoli.map(ostacoloToPolygon),
+            },
+        };
     }
 
-    const url = `${VALHALLA_BASE_URL}/route`;
+    // endpoint GeoJSON: ritorna direttamente una FeatureCollection con LineString
+    const url = `${ORS_BASE_URL}/v2/directions/${ORS_PROFILE}/geojson`;
 
     let response;
     try {
         response = await fetch(url, {
             method: 'POST',
-            headers: {'Content-Type': 'application/json'},
-            body: JSON.stringify(body)
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': ORS_API_KEY,
+            },
+            body: JSON.stringify(body),
         });
     } catch (networkErr) {
-        // errore se Valhalla non è raggiungibile
-        console.error('[Valhalla unreachable]', networkErr.message);
+        console.error('[ORS unreachable]', networkErr.message);
         const err = new Error('Servizio di routing irraggiungibile');
         err.statusCode = 502;
         throw err;
@@ -93,73 +102,49 @@ async function calculateRoute(origin, destination, ostacoli) {
 
     if (!response.ok) {
         const errBody = await response.text();
-        console.error('[Valhalla error body]', errBody);
+        console.error('[ORS error body]', errBody);
 
         let parsed = {};
         try { parsed = JSON.parse(errBody); } catch (_) { /* corpo non-JSON */ }
 
-        // map di qualsiasi codice relativo a percroso non esistente con codice 422
-        if (VALHALLA_NO_PATH_CODES.includes(parsed.error_code)) {
+        // ORS: error.code 2010 (point not found) / 2009 (route not found)
+        // indicano destinazione non raggiungibile -> 422, come i no-path di Valhalla
+        const orsCode = parsed?.error?.code;
+        if (orsCode === 2009 || orsCode === 2010 || response.status === 404) {
             const err = new Error('Nessun percorso pedonale verso la destinazione');
             err.statusCode = 422;
-            err.valhallaCode = parsed.error_code;
+            err.orsCode = orsCode;
             throw err;
         }
 
-        // Qualsiasi altro errore HTTP da Valhalla: lo trattiamo come guasto del servizio.
-        const err = new Error(`risposta Valhalla: ${response.status}`);
+        // qualsiasi altro errore (403 quota, 500, ecc.): guasto servizio a monte
+        const err = new Error(`risposta ORS: ${response.status}`);
         err.statusCode = 502;
         throw err;
     }
 
     const data = await response.json();
 
-    if (!data.trip || !data.trip.legs || data.trip.legs.length === 0) {
-        const err = new Error('Valhalla non ha prodotto un percorso valido');
+    const feature = data?.features?.[0];
+    if (!feature || !feature.geometry || !Array.isArray(feature.geometry.coordinates)) {
+        const err = new Error('ORS non ha prodotto un percorso valido');
         err.statusCode = 502;
         throw err;
     }
 
-    // decodifica polyline restituita da Valhalla in array di coordinate
-    const leg = data.trip.legs[0];
-    const coordinates = decodePolyline6(leg.shape);
+    // ORS /geojson ritorna già la geometria decodificata in [lng, lat]: niente polyline da decodificare
+    const coordinates = feature.geometry.coordinates;
+    const summary = feature.properties?.summary ?? {};
 
     return {
         geometry: {
             type: 'LineString',
-            coordinates
+            coordinates,
         },
-        distance: Math.round(data.trip.summary.length * 1000),
-        duration: Math.round(data.trip.summary.time)
+        // ORS dà distanza in METRI e durata in SECONDI di default: niente *1000
+        distance: Math.round(summary.distance ?? 0),
+        duration: Math.round(summary.duration ?? 0),
     };
-}
-
-// decoder polyline Valhalla
-function decodePolyline6(encoded) {
-    const coords = [];
-    let index = 0, lat = 0, lng = 0;
-    const factor = 1e6;
-
-    while (index < encoded.length) {
-        let shift = 0, result = 0, byte;
-        do {
-            byte = encoded.charCodeAt(index++) - 63;
-            result |= (byte & 0x1f) << shift;
-            shift += 5;
-        } while (byte >= 0x20);
-        lat += (result & 1) ? ~(result >> 1) : (result >> 1);
-
-        shift = 0; result = 0;
-        do {
-            byte = encoded.charCodeAt(index++) - 63;
-            result |= (byte & 0x1f) << shift;
-            shift += 5;
-        } while (byte >= 0x20);
-        lng += (result & 1) ? ~(result >> 1) : (result >> 1);
-
-        coords.push([lng / factor, lat / factor]);
-    }
-    return coords;
 }
 
 module.exports = { calculateRoute, getOstacoliIncompatibili };
