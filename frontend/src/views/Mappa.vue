@@ -84,8 +84,13 @@ function getBboxSicuro() {
 
 let ostacoliLayer = null;
 
-function creaIconaCustom(tipo) {
-  const colore = tipo === 'pubblica' ? '#0ea5e9' : '#f97316';
+function creaIconaCustom(tipo, stato) {
+  let colore = tipo === 'pubblica' ? '#0ea5e9' : '#f97316';
+  
+  if (stato === 'PRESA_IN_CARICO') {
+    colore = '#d1d5db'; 
+  }
+
   const svgPin = `
     <svg width="28" height="42" viewBox="0 0 24 36" xmlns="http://www.w3.org/2000/svg">
       <path d="M12 0C5.37 0 0 5.37 0 12C0 21 12 36 12 36C12 36 24 21 24 12C24 5.37 18.63 0 12 0Z" 
@@ -148,7 +153,7 @@ async function caricaSegnalazioni() {
     const bbox = getBboxSicuro();
     if (!bbox) return;
 
-    const paramsPublic = new URLSearchParams({ bbox, stato: 'APERTA' });
+    const paramsPublic = new URLSearchParams({ bbox });
     const paramsPrivate = new URLSearchParams({ bbox });
 
     let scope = '';
@@ -193,13 +198,15 @@ async function caricaSegnalazioni() {
     const dataPublic = resPublic ? await resPublic.json() : { segnalazioni: [] };
     const dataPrivate = resPrivate ? await resPrivate.json() : { segnalazioni: [] };
 
-    // private: tengo solo APERTA + IN_VERIFICA; scarto RISOLTA/ARCHIVIATA/PRESA_IN_CARICO
     const STATI_MAPPA_PRIVATA = ['APERTA', 'IN_VERIFICA'];
     const privateFiltrate = (dataPrivate.segnalazioni || [])
       .filter(s => STATI_MAPPA_PRIVATA.includes(s.stato));
 
-    // fusione dei risultati delle due queries in un unico array
-    const segnalazioni = [...(dataPublic.segnalazioni || []), ...privateFiltrate];
+    const STATI_MAPPA_PUBBLICA = ['APERTA', 'PRESA_IN_CARICO'];
+    const pubblicheFiltrate = (dataPublic.segnalazioni || [])
+      .filter(s => STATI_MAPPA_PUBBLICA.includes(s.stato));
+
+    const segnalazioni = [...pubblicheFiltrate, ...privateFiltrate];
 
     markersLayer.clearLayers();
 
@@ -233,7 +240,11 @@ async function caricaSegnalazioni() {
           background:#10b981;color:#fff;font-weight:700;cursor:pointer">Conferma segnalazione</button>`;
       }
 
-      const marker = L.marker([lat, lng], { icon: creaIconaCustom(seg.tipo) })
+      if (seg.tipo === 'pubblica' && seg.stato === 'PRESA_IN_CARICO') {
+        html += `<div style="margin-top:8px;font-size:11px;font-weight:700;color:#64748b">Attualmente in risoluzione...</div>`;
+      }
+
+      const marker = L.marker([lat, lng], { icon: creaIconaCustom(seg.tipo, seg.stato) })
         .bindPopup(html, {
           className: 'popup-moderno',
           closeButton: false,
