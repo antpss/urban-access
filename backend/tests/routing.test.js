@@ -1,6 +1,6 @@
-// Test suite US8
-// GET /api/v1/geocode e GET /api/v1/routes
-// i servizi sono simulati, non si testano se Valhalla o Nominatim funzionano
+//Test suite US8
+//GET /api/v1/geocode e GET /api/v1/routes
+//i servizi sono simulati, non si testano se OpenRouteService o Nominatim funzionano
 
 const request = require('supertest');
 const jwt = require('jsonwebtoken');
@@ -206,7 +206,7 @@ describe('Routing & Geocoding API', () => {
         });
  
         test('502: motore di routing irraggiungibile', async () => {
-            // simula Valhalla spento: il service lancia con statusCode 502
+            //simula ORS irraggiungibile: il service lancia con statusCode 502
             ostacoliSpy = jest.spyOn(routingService, 'getOstacoliIncompatibili').mockResolvedValue([]);
             const err = new Error('Servizio di routing irraggiungibile');
             err.statusCode = 502;

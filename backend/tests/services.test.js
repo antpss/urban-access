@@ -1,6 +1,7 @@
-// differentemente da routing.test.js qui viene testata la logica interna
-// dei service: decodifica della polyline, mappatura errori di Valhalla, normalizzazione di output Nominatim
-// e costruzione query.
+//differentemente da routing.test.js qui viene testata la logica interna
+//dei service: parsing della geometria GeoJSON di OpenRouteService, mappatura
+//errori ORS, conversione ostacoli->avoid_polygons, normalizzazione output
+//Nominatim e costruzione query.
 
 const routingService = require('../services/routingService');
 const geocodingService = require('../services/geocodingService');
@@ -23,22 +24,30 @@ afterEach(() => {
   if (findSpy) findSpy.mockRestore(); 
 });
 
-// routingService.calculateRoute
+//routingService.calculateRoute
 describe('routingService.calculateRoute', () => {
  
     const origin = { lng: 11.1211, lat: 46.0667 };
     const destination = { lng: 11.1214267, lat: 46.0673519 };
+
+    //risposta GeoJSON tipica di OpenRouteService (/v2/directions/<profilo>/geojson):
+    //FeatureCollection con una Feature LineString. Coordinate già decodificate in [lng, lat].
+    //distance in METRI, duration in SECONDI dentro properties.summary.
+    const orsGeoJSON = {
+        type: 'FeatureCollection',
+        features: [{
+            type: 'Feature',
+            geometry: {
+                type: 'LineString',
+                coordinates: [[11.121115, 46.066743], [11.121305, 46.0673]]
+            },
+            properties: { summary: { distance: 79, duration: 56 } }
+        }]
+    };
  
-    test('risposta valida: decodifica la polyline e normalizza distanza/durata', async () => {
-        // shape reale restituita da Valhalla per un percorso a Trento (polyline precision 6)
-        const valhallaTrip = {
-            trip: {
-                legs: [{ shape: 'mbuzvAu|weTSxBc@QgEZ{FXwANY_EkNiJsAL' }],
-                summary: { length: 0.079, time: 56.434 }  // km, secondi
-            }
-        };
+    test('risposta valida: estrae la geometria GeoJSON e normalizza distanza/durata', async () => {
         fetchSpy = jest.spyOn(global, 'fetch')
-            .mockResolvedValue(mockResponse({ ok: true, jsonBody: valhallaTrip }));
+            .mockResolvedValue(mockResponse({ ok: true, jsonBody: orsGeoJSON }));
  
         const result = await routingService.calculateRoute(origin, destination, []);
 
@@ -52,46 +61,78 @@ describe('routingService.calculateRoute', () => {
         expect(lat).toBeGreaterThan(46.0);
         expect(lat).toBeLessThan(46.2);
 
+        //ors da già metri/secondi
         expect(result.distance).toBe(79);
         expect(result.duration).toBe(56);
     });
  
-    test('costruisce il body con lon/lat corretti (non lng) e costing pedonale', async () => {
-        const valhallaTrip = {
-            trip: { legs: [{ shape: '_ibE_seK' }], summary: { length: 0.001, time: 1 } }
-        };
+    test('costruisce il body con coordinates [lng,lat] e header Authorization', async () => {
         fetchSpy = jest.spyOn(global, 'fetch')
-            .mockResolvedValue(mockResponse({ ok: true, jsonBody: valhallaTrip }));
+            .mockResolvedValue(mockResponse({ ok: true, jsonBody: orsGeoJSON }));
  
         await routingService.calculateRoute(origin, destination, []);
  
-        // ispeziona il body inviato a Valhalla
+        //ispeziona url + body inviati a ors
+        const [url, options] = fetchSpy.mock.calls[0];
+        const body = JSON.parse(options.body);
+
+        //ors vuole coordinates in ordine GeoJSON [lng, lat]
+        expect(body.coordinates[0]).toEqual([11.1211, 46.0667]);
+        expect(body.coordinates[1]).toEqual([11.1214267, 46.0673519]);
+        //senza ostacoli non deve esserci options.avoid_polygons
+        expect(body.options).toBeUndefined();
+        //endpoint GeoJSON e header di autenticazione presenti
+        expect(url).toContain('/geojson');
+        expect(options.headers.Authorization).toBeDefined();
+    });
+
+    test('con ostacoli: li converte in avoid_polygons (MultiPolygon)', async () => {
+        fetchSpy = jest.spyOn(global, 'fetch')
+            .mockResolvedValue(mockResponse({ ok: true, jsonBody: orsGeoJSON }));
+
+        const ostacoli = [{ lng: 11.1219, lat: 46.0671 }];
+        await routingService.calculateRoute(origin, destination, ostacoli);
+
         const [, options] = fetchSpy.mock.calls[0];
         const body = JSON.parse(options.body);
-        expect(body.locations[0]).toEqual({ lon: 11.1211, lat: 46.0667 });   // lon, non lng
-        expect(body.locations[1]).toEqual({ lon: 11.1214267, lat: 46.0673519 });
-        expect(body.costing).toBe('pedestrian');
+
+        expect(body.options.avoid_polygons.type).toBe('MultiPolygon');
+        //un ostacolo e' un poligono
+        const poligoni = body.options.avoid_polygons.coordinates;
+        expect(poligoni).toHaveLength(1);
+        const anello = poligoni[0][0];
+        expect(anello).toHaveLength(5);
+        expect(anello[0]).toEqual(anello[4]);
     });
  
-    test('error_code Valhalla di "no path". Errore con statusCode 422', async () => {
+    test('error.code ORS di "no path" (2009). Errore con statusCode 422', async () => {
         fetchSpy = jest.spyOn(global, 'fetch').mockResolvedValue(
-            mockResponse({ ok: false, status: 400, textBody: JSON.stringify({ error_code: 442 }) })
+            mockResponse({ ok: false, status: 404, textBody: JSON.stringify({ error: { code: 2009 } }) })
+        );
+ 
+        await expect(routingService.calculateRoute(origin, destination, []))
+            .rejects.toMatchObject({ statusCode: 422 });
+    });
+
+    test('error.code ORS "point not found" (2010). Errore con statusCode 422', async () => {
+        fetchSpy = jest.spyOn(global, 'fetch').mockResolvedValue(
+            mockResponse({ ok: false, status: 404, textBody: JSON.stringify({ error: { code: 2010 } }) })
         );
  
         await expect(routingService.calculateRoute(origin, destination, []))
             .rejects.toMatchObject({ statusCode: 422 });
     });
  
-    test('errore Valhalla non riconducibile a "no path". StatusCode 502', async () => {
+    test('errore ORS non riconducibile a "no path" (es. 403 quota). StatusCode 502', async () => {
         fetchSpy = jest.spyOn(global, 'fetch').mockResolvedValue(
-            mockResponse({ ok: false, status: 500, textBody: JSON.stringify({ error_code: 599 }) })
+            mockResponse({ ok: false, status: 403, textBody: JSON.stringify({ error: { code: 9999 } }) })
         );
  
         await expect(routingService.calculateRoute(origin, destination, []))
             .rejects.toMatchObject({ statusCode: 502 });
     });
  
-    test('fetch lancia (Valhalla irraggiungibile). StatusCode 502', async () => {
+    test('fetch lancia (ORS irraggiungibile). StatusCode 502', async () => {
         fetchSpy = jest.spyOn(global, 'fetch')
             .mockRejectedValue(new Error('ECONNREFUSED'));
  
