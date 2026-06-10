@@ -32,15 +32,13 @@
         </div>
 
         <form @submit.prevent="submitSegnalazione" class="space-y-5">
-          
+
           <div>
-            <label class="block text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-1.5 ml-1">Struttura Associata *</label>
-            <select v-model="form.strutturaAssociata" required class="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-slate-700 outline-none focus:ring-2 focus:ring-emerald-400 focus:bg-white transition-all">
-              <option value="" disabled>Seleziona la struttura interessata</option>
-              <option v-for="struttura in struttureDisponibili" :key="struttura._id" :value="struttura._id">
-                {{ struttura.nome }} ({{ struttura.indirizzo }})
-              </option>
-            </select>
+            <label class="block text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-1.5 ml-1">Struttura Associata</label>
+            <div class="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl">
+              <p class="text-sm font-bold text-slate-700">{{ struttura?.nome || '—' }}</p>
+              <p class="text-xs text-slate-400 font-medium mt-0.5">{{ struttura?.indirizzo }}</p>
+            </div>
           </div>
 
           <div>
@@ -64,15 +62,6 @@
             <p v-if="descrizioneError" class="text-rose-500 text-[11px] mt-1.5 ml-1 font-semibold">{{ descrizioneError }}</p>
           </div>
 
-          <!-- MODIFICA: rimossi input manuali latitudine/longitudine e sostituiti con MapPicker -->
-          <div>
-            <label class="block text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-1.5 ml-1">Posizione sulla mappa *</label>
-            <MapPicker v-model="posizione" />
-            <p v-if="posizioneError" class="text-rose-500 text-[11px] mt-1.5 ml-1 font-semibold">
-              {{ posizioneError }}
-            </p>
-          </div>
-
           <div>
             <label class="block text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-1.5 ml-1">Foto (Max 5)</label>
             <div class="flex items-center gap-2">
@@ -94,13 +83,6 @@
               class="flex-1 min-w-[100px] py-3.5 font-bold rounded-xl text-slate-600 bg-slate-100 hover:bg-slate-200 transition-colors">
               Annulla
             </button>
-            <button type="button" @click="handleLocalize" title="Localizzami"
-              class="flex-none px-4 py-3.5 rounded-xl text-emerald-600 bg-emerald-50 border border-emerald-100 hover:bg-emerald-100 transition-all flex items-center justify-center">
-              <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
-              </svg>
-            </button>
             <button type="submit" :disabled="!isFormValid || isLoading"
               class="flex-[2] min-w-[160px] py-3.5 font-bold rounded-xl text-white bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-600 hover:to-teal-600 disabled:from-slate-300 disabled:to-slate-300 disabled:text-slate-500 disabled:opacity-50 disabled:cursor-not-allowed shadow-lg transition-all">
               <span v-if="isLoading">Invio...</span>
@@ -114,16 +96,16 @@
 </template>
 
 <script setup>
-import { ref, computed, watch} from 'vue';
+import { ref, computed, watch } from 'vue';
 import { useRouter } from 'vue-router';
 import { authFetch, getUser } from '../services/auth';
-import MapPicker from './MapPicker.vue';
 
 const router = useRouter();
 const user = getUser();
 
 const props = defineProps({
-  modelValue: { type: Boolean, required: true }
+  modelValue: { type: Boolean, required: true },
+  struttura: { type: Object, default: null }
 });
 
 const emit = defineEmits(['update:modelValue', 'submitted']);
@@ -142,57 +124,26 @@ const serverErrorDetails = ref([]);
 const descrizioneError = ref('');
 const fileError = ref('');
 
-const struttureDisponibili = ref([]);
-
-
-const posizione = ref(null);
-const posizioneError = ref('');
-
 const form = ref({
-  strutturaAssociata: '',
   categoria: '',
   descrizione: '',
   foto: []
 });
 
-const fetchStrutture = async () => {
-  try {
-    // MODIFICA: sistemato bug, ora response esiste davvero
-    const response = await authFetch(`${API_BASE_URL}/structures`);
-
-    const data = await response.json().catch(() => ({}));
-
-    if (!response.ok) {
-      throw new Error(data.error || 'Impossibile caricare le strutture');
-    }
-
-    // MODIFICA: supporta sia array diretto sia oggetto { strutture: [...] }
-    struttureDisponibili.value = Array.isArray(data) ? data : (data.strutture || []);
-  } catch (error) {
-    console.error('Impossibile caricare le strutture', error);
-    struttureDisponibili.value = [];
-  }
-};
-
 const resetForm = () => {
-
   form.value = {
-    strutturaAssociata: '',
     categoria: '',
     descrizione: '',
     foto: []
   };
-
-  posizione.value = null; 
   serverError.value = '';
   serverErrorDetails.value = [];
   descrizioneError.value = '';
-  posizioneError.value = '';
   fileError.value = '';
+  if (fileInput.value) fileInput.value.value = '';
 };
 
 watch(() => props.modelValue, (val) => {
-  if (val) fetchStrutture();
   if (!val) resetForm();
 });
 
@@ -210,15 +161,21 @@ const validateDescrizione = () => {
   else descrizioneError.value = '';
 };
 
+
+const coordinateStruttura = computed(() => {
+  const coords = props.struttura?.geolocalizzazione?.coordinates;
+  if (!Array.isArray(coords) || coords.length !== 2) return null;
+  return { lng: coords[0], lat: coords[1] };
+});
+
 const isFormValid = computed(() =>
   descrizioneError.value === '' &&
-  posizioneError.value === '' &&
   fileError.value === '' &&
-  form.value.strutturaAssociata &&
+  props.struttura?._id &&
+  coordinateStruttura.value !== null &&
   form.value.categoria &&
   form.value.descrizione &&
-  form.value.descrizione.length >= 10 &&
-  posizione.value !== null
+  form.value.descrizione.length >= 10
 );
 
 const handleFileChange = (event) => {
@@ -227,33 +184,11 @@ const handleFileChange = (event) => {
   form.value.foto = files;
 };
 
-const handleLocalize = () => {
-
-  if (!navigator.geolocation) {
-    posizioneError.value = 'Geolocalizzazione non supportata dal browser';
-    return;
-  }
-
-  navigator.geolocation.getCurrentPosition(
-    (pos) => {
-      posizione.value = {
-        lat: pos.coords.latitude,
-        lng: pos.coords.longitude
-      };
-      posizioneError.value = '';
-    },
-    () => {
-      posizioneError.value = 'Impossibile ottenere la posizione corrente';
-    }
-  );
-};
-
 const submitSegnalazione = async () => {
   validateDescrizione();
 
-
-  if (!posizione.value) {
-    posizioneError.value = 'Seleziona la posizione sulla mappa';
+  if (!props.struttura?._id || !coordinateStruttura.value) {
+    serverError.value = 'Struttura non valida: riapri il form dalla mappa.';
     return;
   }
 
@@ -264,13 +199,11 @@ const submitSegnalazione = async () => {
   serverErrorDetails.value = [];
 
   const formData = new FormData();
-  formData.append('strutturaAssociata', form.value.strutturaAssociata);
+  formData.append('strutturaAssociata', props.struttura._id);
   formData.append('descrizione', form.value.descrizione);
   formData.append('categoria', form.value.categoria);
-
-
-  formData.append('latitudine', String(posizione.value.lat));
-  formData.append('longitudine', String(posizione.value.lng));
+  formData.append('latitudine', String(coordinateStruttura.value.lat));
+  formData.append('longitudine', String(coordinateStruttura.value.lng));
 
   form.value.foto.forEach(f => formData.append('foto', f));
 

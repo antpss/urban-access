@@ -113,6 +113,16 @@
         </section>
 
       </div>
+
+      <div v-if="isCittadino" class="p-6 border-t border-slate-100">
+        <button
+          type="button"
+          @click="$emit('nuova-segnalazione')"
+          class="w-full py-3.5 text-sm font-bold rounded-xl text-emerald-600 bg-emerald-50 border border-emerald-100 hover:bg-emerald-100 transition-all transform hover:-translate-y-0.5 active:translate-y-0"
+        >
+          + Inserisci Segnalazione Privata
+        </button>
+      </div>
     </aside>
   </transition>
 </template>
@@ -120,11 +130,15 @@
 <script setup>
 import { ref, computed, watch } from 'vue';
 import { getStructureById, getPrivateReportsByStructure } from '../services/structureService';
+import { getUser } from '../services/auth';
 
 const props = defineProps({
   struttura: { type: Object, default: null }
 });
-defineEmits(['close']);
+defineEmits(['close', 'nuova-segnalazione']);
+
+
+const isCittadino = computed(() => getUser()?.ruolo === 'cittadino');
 
 const dati = ref({});
 const loadingDettaglio = ref(false);

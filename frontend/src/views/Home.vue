@@ -54,15 +54,6 @@
           </button>
 
           <button 
-            v-if="user?.ruolo === 'cittadino'"
-            type="button"
-            @click="isModalPrivataOpen = true" 
-            class="w-full py-3.5 text-sm font-bold rounded-xl text-emerald-600 bg-emerald-50 border border-emerald-100 hover:bg-emerald-100 transition-all transform hover:-translate-y-0.5 active:translate-y-0"
-          >
-            + Inserisci Segnalazione Privata
-          </button>
-
-          <button 
             type="button"
             @click="handleLogout" 
             class="w-full py-3.5 text-sm font-bold rounded-xl text-rose-600 bg-slate-100 hover:bg-rose-600 hover:text-white transition-all transform hover:-translate-y-0.5 active:translate-y-0"
@@ -83,7 +74,7 @@
     </transition>
 
     <FormSegnalazione v-model="isModalOpen" @submitted="onSegnalazioneSubmitted" />
-    <FormSegnalazionePrivata v-model="isModalPrivataOpen" @submitted="onSegnalazioneSubmitted" />
+    <FormSegnalazionePrivata v-model="isModalPrivataOpen" :struttura="strutturaVetrina" @submitted="onSegnalazionePrivataSubmitted" />
 
     <PannelloValidazione
       v-model="isValidazioneOpen"
@@ -92,7 +83,7 @@
       @score-updated="onScoreUpdated"
       @archived="onArchived"
     />
-    <VetrinaPanel :struttura="strutturaVetrina" @close="chiudiVetrina" />
+    <VetrinaPanel :struttura="strutturaVetrina" @close="chiudiVetrina" @nuova-segnalazione="apriFormPrivata" />
   </div>
 </template>
 
@@ -138,7 +129,19 @@ const chiudiVetrina = () => {
   mappaRef.value?.deselezionaStruttura();
 };
 
-// dopo una validazione riuscita: aggiorno il riferimento locale e ricarico la mappa
+
+const apriFormPrivata = () => {
+  isModalPrivataOpen.value = true;
+};
+
+const onSegnalazionePrivataSubmitted = () => {
+  onSegnalazioneSubmitted();
+  if (strutturaVetrina.value) {
+    strutturaVetrina.value = { ...strutturaVetrina.value };
+  }
+};
+
+//dopo una validazione riuscita aggiorno il riferimento locale e ricarico la mappa
 const onValidated = ({ stato }) => {
   if (segnalazioneSelezionata.value) {
     segnalazioneSelezionata.value = { ...segnalazioneSelezionata.value, stato };
