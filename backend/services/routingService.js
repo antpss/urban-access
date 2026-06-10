@@ -6,6 +6,12 @@ const Segnalazione = require('../models/Segnalazione');
 // senza chiudere interi quartieri. Valore di dominio, regolabile.
 const AVOID_RADIUS = 0.00015;
 
+if (!ORS_API_KEY) {
+    const err = new Error('ORS_API_KEY non configurata');
+    err.statusCode = 500;
+    throw err;
+}
+
 //INVARIATA rispetto alla versione Valhalla: logica DB pura, indipendente dal motore.
 async function getOstacoliIncompatibili(profiloDisabilita, origin, destination) {
   if (!profiloDisabilita || profiloDisabilita.length === 0) return [];
