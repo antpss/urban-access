@@ -21,10 +21,10 @@ router.get('/reports',
 
 // PATCH /api/v1/admin/reports/:id/presa-in-carico
 //operatore prende in carico una segnalazione pubblica APERTA
-router.patch('/reports/:id/presa-in-carico',
+router.patch('/publicReports/:id',
     verifyToken,
     requireRole('operatore'),
-    adminController.presaInCarico
+    adminController.patchPublicReport
 );
 
 // PATCH /api/v1/admin/privateReports/:id

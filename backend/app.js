@@ -1,4 +1,3 @@
-require('dotenv').config();
 const express = require('express');
 const cors = require('cors');
 const path = require('path');
@@ -37,7 +36,7 @@ app.use('/api/v1/structures', structuresRoutes);
 app.use('/api/v1/admin', adminRoutes);
 app.use('/api/v1', routingRoutes);
 
-// error handler multer (uguale a prima)
+// error handler multer
 app.use('/api', (err, req, res, next) => {
     if (err instanceof multer.MulterError) {
         const fieldMap = {
@@ -73,7 +72,7 @@ app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 app.use(express.static(path.join(__dirname, '../frontend/dist')));
 
 app.get('/{*splat}', (req, res) => {
-    res.sendFile(path.join(__dirname, '../frontend/', 'index.html'));
+    res.sendFile(path.join(__dirname, '../frontend/dist', 'index.html'));
 });
 
 module.exports = app;

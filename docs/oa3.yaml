@@ -2024,7 +2024,7 @@ paths:
         '500':
           $ref: '#/components/responses/InternalServerError'
 
-  /admin/reports/{id}/presa-in-carico:
+  /admin/publicReports/{id}:
     patch:
       tags:
         - Admin

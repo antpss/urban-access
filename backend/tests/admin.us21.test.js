@@ -1,5 +1,5 @@
-// Test suite US21
-// PATCH /api/v1/admin/reports/:id/presa-in-carico
+//Test suite US21
+//PATCH /api/v1/admin/publicReports/:id
 
 const request = require('supertest');
 const jwt = require('jsonwebtoken');
@@ -24,7 +24,7 @@ const tokenCittadino = jwt.sign(
     { expiresIn: '2h' }
 );
 
-describe('PATCH /api/v1/admin/reports/:id/presa-in-carico - US21 Presa in carico', () => {
+describe('PATCH /api/v1/admin/publicReports/:id - US21 Presa in carico', () => {
 
     afterAll(async () => {
         await mongoose.connection.close();
@@ -35,7 +35,7 @@ describe('PATCH /api/v1/admin/reports/:id/presa-in-carico - US21 Presa in carico
     });
 
     test('401: nessun token', async () => {
-        const res = await request(app).patch(`/api/v1/admin/reports/${VALID_REPORT_ID}/presa-in-carico`);
+        const res = await request(app).patch(`/api/v1/admin/publicReports/${VALID_REPORT_ID}`);
         expect(res.status).toBe(401);
     });
 
@@ -43,8 +43,9 @@ describe('PATCH /api/v1/admin/reports/:id/presa-in-carico - US21 Presa in carico
         const findOneSpy = jest.spyOn(Segnalazione, 'findOne');
 
         const res = await request(app)
-            .patch(`/api/v1/admin/reports/${VALID_REPORT_ID}/presa-in-carico`)
-            .set('Authorization', `Bearer ${tokenCittadino}`);
+            .patch(`/api/v1/admin/publicReports/${VALID_REPORT_ID}`)
+            .set('Authorization', `Bearer ${tokenCittadino}`)
+            .send({ stato: 'PRESA_IN_CARICO' });
 
         expect(res.status).toBe(403);
         expect(findOneSpy).not.toHaveBeenCalled();
@@ -54,8 +55,9 @@ describe('PATCH /api/v1/admin/reports/:id/presa-in-carico - US21 Presa in carico
         const findOneSpy = jest.spyOn(Segnalazione, 'findOne');
 
         const res = await request(app)
-            .patch('/api/v1/admin/reports/id-invalido/presa-in-carico')
-            .set('Authorization', `Bearer ${tokenOperatore}`);
+            .patch('/api/v1/admin/publicReports/id-invalido')
+            .set('Authorization', `Bearer ${tokenOperatore}`)
+            .send({ stato: 'PRESA_IN_CARICO' });
 
         expect(res.status).toBe(400);
         expect(res.body.details[0].field).toBe('id');
@@ -66,8 +68,9 @@ describe('PATCH /api/v1/admin/reports/:id/presa-in-carico - US21 Presa in carico
         jest.spyOn(Segnalazione, 'findOne').mockResolvedValue(null);
 
         const res = await request(app)
-            .patch(`/api/v1/admin/reports/${VALID_REPORT_ID}/presa-in-carico`)
-            .set('Authorization', `Bearer ${tokenOperatore}`);
+            .patch(`/api/v1/admin/publicReports/${VALID_REPORT_ID}`)
+            .set('Authorization', `Bearer ${tokenOperatore}`)
+            .send({ stato: 'PRESA_IN_CARICO' });
 
         expect(res.status).toBe(404);
         expect(res.body.error).toBe('Segnalazione pubblica non trovata');
@@ -78,8 +81,9 @@ describe('PATCH /api/v1/admin/reports/:id/presa-in-carico - US21 Presa in carico
         jest.spyOn(Segnalazione, 'findOne').mockResolvedValue(mockDoc);
 
         const res = await request(app)
-            .patch(`/api/v1/admin/reports/${VALID_REPORT_ID}/presa-in-carico`)
-            .set('Authorization', `Bearer ${tokenOperatore}`);
+            .patch(`/api/v1/admin/publicReports/${VALID_REPORT_ID}`)
+            .set('Authorization', `Bearer ${tokenOperatore}`)
+            .send({ stato: 'PRESA_IN_CARICO' });
 
         expect(res.status).toBe(409);
         expect(res.body.error).toContain('non è in stato APERTA');
@@ -96,8 +100,9 @@ describe('PATCH /api/v1/admin/reports/:id/presa-in-carico - US21 Presa in carico
         jest.spyOn(Segnalazione, 'findOne').mockResolvedValue(mockDoc);
 
         const res = await request(app)
-            .patch(`/api/v1/admin/reports/${VALID_REPORT_ID}/presa-in-carico`)
-            .set('Authorization', `Bearer ${tokenOperatore}`);
+            .patch(`/api/v1/admin/publicReports/${VALID_REPORT_ID}`)
+            .set('Authorization', `Bearer ${tokenOperatore}`)
+            .send({ stato: 'PRESA_IN_CARICO' });
 
         expect(res.status).toBe(200);
         expect(res.body.message).toBe('Segnalazione presa in carico con successo');
@@ -125,8 +130,9 @@ describe('PATCH /api/v1/admin/reports/:id/presa-in-carico - US21 Presa in carico
         jest.spyOn(Segnalazione, 'findOne').mockResolvedValue(mockDoc);
 
         const res = await request(app)
-            .patch(`/api/v1/admin/reports/${VALID_REPORT_ID}/presa-in-carico`)
-            .set('Authorization', `Bearer ${tokenOperatore}`);
+            .patch(`/api/v1/admin/publicReports/${VALID_REPORT_ID}`)
+            .set('Authorization', `Bearer ${tokenOperatore}`)
+            .send({ stato: 'PRESA_IN_CARICO' });
 
         expect(res.status).toBe(400);
         expect(res.body.error).toBe('Validazione fallita');
@@ -140,8 +146,9 @@ describe('PATCH /api/v1/admin/reports/:id/presa-in-carico - US21 Presa in carico
         jest.spyOn(Segnalazione, 'findOne').mockRejectedValue(new Error('DB down'));
 
         const res = await request(app)
-            .patch(`/api/v1/admin/reports/${VALID_REPORT_ID}/presa-in-carico`)
-            .set('Authorization', `Bearer ${tokenOperatore}`);
+            .patch(`/api/v1/admin/publicReports/${VALID_REPORT_ID}`)
+            .set('Authorization', `Bearer ${tokenOperatore}`)
+            .send({ stato: 'PRESA_IN_CARICO' });
 
         expect(res.status).toBe(500);
         expect(res.body.error).toBe('Errore interno del server');

@@ -399,9 +399,11 @@ async function prendiInCarico(s) {
   messaggioAzione.value = '';
   messaggioAzioneErrore.value = false;
   try {
-    const res = await authFetch(`${API_BASE_URL}/admin/reports/${s._id}/presa-in-carico`, {
-      method: 'PATCH'
-    });
+      const res = await authFetch(`${API_BASE_URL}/admin/publicReports/${s._id}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ stato: 'PRESA_IN_CARICO' })
+  });
     if (!res.ok) {
       const body = await res.json().catch(() => ({}));
       //409: qualcun altro l'ha già presa in carico nel frattempo
@@ -416,7 +418,7 @@ async function prendiInCarico(s) {
     Object.assign(s, data.segnalazione);
     messaggioAzione.value = 'Segnalazione presa in carico.';
   } catch (err) {
-    console.error('PATCH /admin/reports/:id/presa-in-carico', err);
+    console.error('PATCH /admin/publicReports/:id', err);
     messaggioAzione.value = 'Errore di rete durante la presa in carico.';
     messaggioAzioneErrore.value = true;
   } finally {

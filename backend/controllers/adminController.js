@@ -284,18 +284,27 @@ exports.getReportsDashboard = async (req, res) => {
     }
 };
 
-// PATCH /api/v1/admin/reports/:id/presa-in-carico
+// PATCH /api/v1/admin/publicReports/:id
 //operatore prende in carico una segnalazione pubblica APERTA
 //transizione consentita: APERTA -> PRESA_IN_CARICO. Assegna enteCompetente = operatore (dal JWT)
-exports.presaInCarico = async (req, res) => {
+const STATI_TARGET_PUBBLICA = ['PRESA_IN_CARICO'];
+exports.patchPublicReport = async (req, res) => {
     try {
         const { id } = req.params;
+        const { stato } = req.body || {};
 
         //validazione ObjectId prima di toccare il DB: id malformato -> 400.
         if (!mongoose.Types.ObjectId.isValid(id)) {
             return res.status(400).json({
                 error: 'Validazione fallita',
                 details: [{ field: 'id', message: 'ObjectId non valido' }]
+            });
+        }
+
+        if (!stato || !STATI_TARGET_PUBBLICA.includes(stato)) {
+            return res.status(400).json({
+                error: 'Validazione fallita',
+                details: [{ field: 'stato', message: `valore non ammesso. Ammessi: ${STATI_TARGET_PUBBLICA.join(', ')}` }]
             });
         }
 
@@ -321,7 +330,7 @@ exports.presaInCarico = async (req, res) => {
         });
 
     } catch (err) {
-        console.error('PATCH /admin/reports/:id/presa-in-carico', err);
+        console.error('PATCH /admin/publicReports/:id', err);
         if (err.name === 'ValidationError') {
             const details = Object.values(err.errors).map(e => ({
                 field: e.path,
