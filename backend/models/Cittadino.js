@@ -15,7 +15,7 @@ const cittadinoSchema = new mongoose.Schema({
     scoreAffidabilita: {
         type: Number,
         default: 5,
-        min: [0, 'lo score non può essere negativo'],
+        min: [1, 'lo score non può scendere sotto 1'],
         max: [14, 'lo score non può superare 14']
     },
     posizione: {

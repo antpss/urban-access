@@ -37,6 +37,16 @@ const pointSchema = new mongoose.Schema({
     }
 }, { _id: false });//specifichiamo che non serve l'id perchè questo schema è dentro strutturaPrivata che ha un id
 
+
+const accessibilitaSchema = new mongoose.Schema({
+    rampa:                { type: Boolean, default: false },
+    ascensore:            { type: Boolean, default: false },
+    bagnoAccessibile:     { type: Boolean, default: false },
+    ingressoSenzaGradini: { type: Boolean, default: false },
+    parcheggioRiservato:  { type: Boolean, default: false }
+}, { _id: false });
+
+
 const strutturaPrivataSchema = new mongoose.Schema({
 
     nome: {
@@ -69,6 +79,24 @@ const strutturaPrivataSchema = new mongoose.Schema({
         type: mongoose.Schema.Types.ObjectId,
         ref: 'User',
         required: [true, 'proprietario obbligatorio']
+    },
+    numForzature: {
+        type: Number,
+        default: 0,
+        min: 0
+    },
+    numAnomalieStruttura: {
+        type: Number,
+        default: 0,
+        min: 0
+    },
+    accessibilita: {
+        type: accessibilitaSchema,
+        default: () => ({})    //genera il sottodoc con tutti i default false
+    },
+    accessibile: {
+        type: Boolean,
+        default: false
     }
 }, {
     timestamps: true,
@@ -76,7 +104,16 @@ const strutturaPrivataSchema = new mongoose.Schema({
 });
 
 strutturaPrivataSchema.index({ geolocalizzazione: '2dsphere' });
+const SOGLIA_BADGE = 3;
 
+strutturaPrivataSchema.pre('save', function() {
+    const a = this.accessibilita || {};
+    const numTrue = [
+        a.rampa, a.ascensore, a.bagnoAccessibile,
+        a.ingressoSenzaGradini, a.parcheggioRiservato
+    ].filter(Boolean).length;
+    this.accessibile = numTrue >= SOGLIA_BADGE;
+});
 
 module.exports = mongoose.model('StrutturaPrivata', strutturaPrivataSchema);
 module.exports.categoriaStruttura = categoriaStruttura;

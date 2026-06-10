@@ -4,25 +4,18 @@ const reportController = require('../controllers/reportController');
 const { verifyToken, requireRole } = require('../middlewares/authJwt');
 const { uploadFotoSegnalazione } = require('../middlewares/photoUploader');
 
-// POST /api/v1/reports/public
-router.post('/public',
+// POST /api/v1/publicReports
+router.post('/',
     verifyToken,
     requireRole('cittadino'),
     uploadFotoSegnalazione,
     reportController.createPublicReport
 );
 
-// POST /api/v1/reports/private
-router.post('/private',
+// GET /api/v1/publicReports
+router.get('/',
     verifyToken,
-    requireRole('cittadino'),
-    uploadFotoSegnalazione,
-    reportController.createPrivateReport
+    reportController.getPublicReports
 );
 
-// GET /api/v1/reports
-router.get('/', 
-    verifyToken,
-    reportController.getReports
-)
 module.exports = router;

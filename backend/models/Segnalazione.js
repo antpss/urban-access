@@ -73,8 +73,12 @@ const segnalazioneSchema = new mongoose.Schema({
 //INDICE 2DSPHERE: abilita query $near, $geoWithin, $geoIntersects
 segnalazioneSchema.index({ geolocalizzazione: '2dsphere' });
 
-//indice composto utile per query frequenti (es. "pubbliche aperte")
-segnalazioneSchema.index({ tipo: 1, stato: 1 });
+//indice composto utile per query frequenti (es. "pubbliche aperte") e per
+//l'ordinamento della dashboard operatore: filtro tipo+stato + sort su createdAt.
+//Pattern ESR (Equality, Sort, Range): tipo/stato in uguaglianza, createdAt per l'ordinamento.
+//Copre anche le query che usano solo { tipo, stato } grazie al prefix-matching, quindi
+//sostituisce (non affianca) il vecchio indice { tipo: 1, stato: 1 }.
+segnalazioneSchema.index({ tipo: 1, stato: 1, createdAt: -1 });
 
 module.exports = mongoose.model('Segnalazione', segnalazioneSchema);
 module.exports.statoSegnalazione = statoSegnalazione;

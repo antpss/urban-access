@@ -3,7 +3,13 @@ import RegisterView from '../views/RegisterView.vue';
 import LoginView from '../views/LoginView.vue';
 import SelectDisability from '../views/SelectDisability.vue';
 import Home from '../views/Home.vue';
+import HomeProprietario from '../views/HomeProprietario.vue';
+import HomeOperatore from '../views/HomeOperatore.vue';
+import AdminReports from '../views/AdminReports.vue';
+import Profilo from '../views/Profilo.vue';
 import { isAuthenticated, getUser } from '../services/auth';
+import AdminPrivateReports from '../views/AdminPrivateReports.vue';
+import AdminStructures from '../views/AdminStructures.vue';
 
 const routes = [
     { path: '/', redirect: '/login' },
@@ -29,7 +35,48 @@ const routes = [
         path: '/home',
         name: 'Home',
         component: Home,
-        meta: {requiresAuth: true}
+        meta: { requiresAuth: true, role: 'cittadino' }
+    },
+    {
+        path: '/home/proprietario',
+        name: 'HomeProprietario',
+        component: HomeProprietario,
+        meta: { requiresAuth: true, role: 'proprietario' }
+    },
+    {
+        //home dell'operatore comunale: ospita la heatmap delle criticità
+        path: '/home/operatore',
+        name: 'HomeOperatore',
+        component: HomeOperatore,
+        meta: { requiresAuth: true, role: 'operatore' }
+    },
+    {
+        //dashboard segnalazioni pubbliche aperte
+        path: '/home/operatore/reports',
+        name: 'AdminReports',
+        component: AdminReports,
+        meta: { requiresAuth: true, role: 'operatore' }
+    },
+    {
+        //dashboard segnalazioni private: moderazione e forzatura stato (US23)
+        path: '/home/operatore/private-reports',
+        name: 'AdminPrivateReports',
+        component: AdminPrivateReports,
+        meta: { requiresAuth: true, role: 'operatore' }
+    },
+    {
+        //backoffice strutture private: monitoraggio anomalie (US23bis)
+        path: '/home/operatore/structures',
+        name: 'AdminStructures',
+        component: AdminStructures,
+        meta: { requiresAuth: true, role: 'operatore' }
+    },
+    {
+        //profilo personale: comune a tutti i ruoli, nessun vincolo di ruolo
+        path: '/profilo',
+        name: 'Profilo',
+        component: Profilo,
+        meta: { requiresAuth: true }
     }
 ];
 
@@ -37,6 +84,12 @@ const router = createRouter({
     history: createWebHistory(),
     routes
 });
+
+export const homeRouteByRole = {
+    cittadino: 'Home',
+    proprietario: 'HomeProprietario',
+    operatore: 'HomeOperatore'
+};
 
 router.beforeEach((to, from, next) => {
     const authed = isAuthenticated();
@@ -49,13 +102,20 @@ router.beforeEach((to, from, next) => {
 
     // verifica tentativi di accesso se autenticato a pagine per ospiti
     if (to.meta.requireGuest && authed) {
-        return next({ name: 'Home' });
+        const targetName = homeRouteByRole[user?.ruolo] || 'Home';
+        return next({ name: targetName });
     }
 
     
     if (to.meta.role && user?.ruolo !== to.meta.role) {
-        return next({ name: 'Home' });
+        const targetName = homeRouteByRole[user?.ruolo];
+        if (targetName && targetName !== to.name) {
+            return next({ name: targetName });
+        }
+        //fallback se ruolo non mappato: torna al login
+        return next({ name: 'Login' });
     }
+
     return next();
 });
 

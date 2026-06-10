@@ -15,7 +15,12 @@
         </button>
       </transition>
 
-      <Mappa ref="mappaRef" />
+      <div class="absolute top-6 right-6 z-[401]">
+        <FiltroCategoria v-model="categoriaSelezionata" />
+      </div>
+
+      <Mappa ref="mappaRef" :categoria="categoriaSelezionata" @valida-segnalazione="onValidaSegnalazione" @struttura-selezionata="onStrutturaSelezionata" />
+        <SearchRoute :mappa-ref="mappaRef" />
     </main>
 
     <transition name="slide-sidebar">
@@ -24,10 +29,11 @@
         class="absolute top-10 bottom-10 left-10 bg-white/95 backdrop-blur shadow-2xl z-[410] flex flex-col w-80 rounded-2xl border border-slate-100"
       >
         <div class="p-6 border-b border-slate-100 relative">
-          <div class="pr-10">
-            <h2 class="text-xl font-extrabold text-slate-800 tracking-tight">Ciao {{ user?.nome }}👋!</h2>
-            <p class="text-sm text-slate-400 font-medium capitalize mt-0.5">{{ user?.ruolo }}</p>
-          </div>
+          <button type="button" @click="vaiAlProfilo"
+            class="pr-10 text-left group w-full" title="Vai al tuo profilo">
+            <h2 class="text-xl font-extrabold text-slate-800 tracking-tight group-hover:text-emerald-600 transition-colors">Ciao {{ user?.nome }}👋!</h2>
+            <p class="text-sm text-slate-400 font-medium capitalize mt-0.5 group-hover:text-emerald-500 transition-colors">{{ user?.ruolo }} · Vedi profilo</p>
+          </button>
           <button @click="isSidebarOpen = false" class="absolute top-6 right-6 p-2 text-slate-400 hover:text-rose-500 rounded-lg hover:bg-rose-50 transition-colors">
             <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
@@ -45,15 +51,6 @@
             class="w-full py-3.5 text-sm font-bold rounded-xl text-white bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-600 hover:to-teal-600 shadow-lg shadow-emerald-200 transition-all transform hover:-translate-y-0.5 active:translate-y-0"
           >
             + Inserisci Segnalazione Pubblica
-          </button>
-
-          <button 
-            v-if="user?.ruolo === 'cittadino'"
-            type="button"
-            @click="isModalPrivataOpen = true" 
-            class="w-full py-3.5 text-sm font-bold rounded-xl text-emerald-600 bg-emerald-50 border border-emerald-100 hover:bg-emerald-100 transition-all transform hover:-translate-y-0.5 active:translate-y-0"
-          >
-            + Inserisci Segnalazione Privata
           </button>
 
           <button 
@@ -77,7 +74,16 @@
     </transition>
 
     <FormSegnalazione v-model="isModalOpen" @submitted="onSegnalazioneSubmitted" />
-    <FormSegnalazionePrivata v-model="isModalPrivataOpen" @submitted="onSegnalazioneSubmitted" />
+    <FormSegnalazionePrivata v-model="isModalPrivataOpen" :struttura="strutturaVetrina" @submitted="onSegnalazionePrivataSubmitted" />
+
+    <PannelloValidazione
+      v-model="isValidazioneOpen"
+      :report="segnalazioneSelezionata"
+      @validated="onValidated"
+      @score-updated="onScoreUpdated"
+      @archived="onArchived"
+    />
+    <VetrinaPanel :struttura="strutturaVetrina" @close="chiudiVetrina" @nuova-segnalazione="apriFormPrivata" />
   </div>
 </template>
 
@@ -88,6 +94,10 @@ import { ref } from 'vue';
 import FormSegnalazione from './FormSegnalazione.vue';
 import FormSegnalazionePrivata from './FormSegnalazionePrivata.vue';
 import Mappa from './Mappa.vue';
+import FiltroCategoria from './FiltroCategoria.vue';
+import SearchRoute from './SearchRoute.vue';
+import PannelloValidazione from './PannelloValidazione.vue';
+import VetrinaPanel from './VetrinaPanel.vue';
 
 const router = useRouter();
 const user = getUser();
@@ -97,6 +107,65 @@ const isModalOpen = ref(false);
 const isModalPrivataOpen = ref(false);
 const showSuccessBanner = ref(false);
 const mappaRef = ref(null);
+
+const categoriaSelezionata = ref('');
+
+const isValidazioneOpen = ref(false);
+const segnalazioneSelezionata = ref(null);
+
+const strutturaVetrina = ref(null);
+
+const onValidaSegnalazione = (seg) => {
+  segnalazioneSelezionata.value = seg;
+  isValidazioneOpen.value = true;
+};
+
+const onStrutturaSelezionata = (struttura) => {
+  strutturaVetrina.value = struttura;
+};
+
+const chiudiVetrina = () => {
+  strutturaVetrina.value = null;
+  mappaRef.value?.deselezionaStruttura();
+};
+
+
+const apriFormPrivata = () => {
+  isModalPrivataOpen.value = true;
+};
+
+const onSegnalazionePrivataSubmitted = () => {
+  onSegnalazioneSubmitted();
+  if (strutturaVetrina.value) {
+    strutturaVetrina.value = { ...strutturaVetrina.value };
+  }
+};
+
+//dopo una validazione riuscita aggiorno il riferimento locale e ricarico la mappa
+const onValidated = ({ stato }) => {
+  if (segnalazioneSelezionata.value) {
+    segnalazioneSelezionata.value = { ...segnalazioneSelezionata.value, stato };
+  }
+  mappaRef.value?.refresh();
+};
+
+const onScoreUpdated = ({ scoreAssociato, stato }) => {
+  if (segnalazioneSelezionata.value) {
+    segnalazioneSelezionata.value = {
+      ...segnalazioneSelezionata.value,
+      scoreAssociato,
+      ...(stato ? { stato } : {})
+    };
+  }
+  //una smentita può aver fatto retrocedere lo stato: riallineo i marker
+  mappaRef.value?.refresh();
+};
+
+// segnalazione archiviata da smentita: sparisce dalla mappa, chiudo il modale
+const onArchived = () => {
+  isValidazioneOpen.value = false;
+  mappaRef.value?.refresh();
+};
 
 const onSegnalazioneSubmitted = () => {
   showSuccessBanner.value = true;
@@ -109,6 +178,10 @@ const onSegnalazioneSubmitted = () => {
 const handleLogout = () => {
   clearSession();
   router.push('/login');
+};
+
+const vaiAlProfilo = () => {
+  router.push({ name: 'Profilo' });
 };
 </script>
 
