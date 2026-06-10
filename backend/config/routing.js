@@ -22,12 +22,20 @@ const CATEGORIA_PROFILI_INCOMPATIBILI ={
 
 const STATI_ATTIVI = ['APERTA', 'IN_VERIFICA', 'PRESA_IN_CARICO'];
 
+const ORS_BASE_URL = process.env.ORS_BASE_URL || 'https://api.openrouteservice.org';
+const ORS_API_KEY  = process.env.ORS_API_KEY;   // obbligatoria, da env
+const ORS_PROFILE  = process.env.ORS_PROFILE || 'foot-walking';
+
 module.exports = {
     POS_TRENTO,
-    VALHALLA_BASE_URL: process.env.VALHALLA_BASE_URL || 'http://localhost:8002',
+    //VALHALLA_BASE_URL: process.env.VALHALLA_BASE_URL || 'http://localhost:8002',
     NOMINATIM_BASE_URL: process.env.NOMINATIM_BASE_URL || 'https://nominatim.openstreetmap.org',
     NOMINATIM_USER_AGENT: process.env.NOMINATIM_USER_AGENT || 'UrbanAccess/1.0',
-    COSTING: 'pedestrian',
+    //COSTING: 'pedestrian',
+
+    ORS_BASE_URL,
+    ORS_API_KEY,
+    ORS_PROFILE,
 
     // bounding box per limitare le ricerche geografiche a Trentino Alto Adige
     // formato: [min_lon, min_lat, max_lon, max_lat]
