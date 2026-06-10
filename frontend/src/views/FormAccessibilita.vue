@@ -2,7 +2,6 @@
   <transition name="fade">
     <div v-if="modelValue" class="fixed inset-0 z-50 flex items-center justify-center p-4">
 
-      <!-- backdrop: chiude il modale al click -->
       <div class="absolute inset-0 bg-slate-900/40 backdrop-blur-sm cursor-pointer" @click="$emit('update:modelValue', false)"></div>
 
       <div class="relative w-full max-w-lg bg-white rounded-[2rem] shadow-2xl p-8 max-h-[90vh] overflow-y-auto z-50">
@@ -17,7 +16,6 @@
         </div>
         <p class="text-sm text-slate-500 mb-6">Autocertifica i parametri di <span class="font-semibold text-slate-700">{{ struttura?.nome }}</span>. Con almeno 3 voci attive la struttura ottiene il badge accessibile.</p>
 
-        <!-- anteprima badge: calcolata localmente, solo a scopo di feedback immediato -->
         <div class="mb-6 flex items-center gap-3 rounded-2xl p-4 border transition-colors"
              :class="anteprimaAccessibile ? 'bg-emerald-50 border-emerald-200' : 'bg-slate-50 border-slate-200'">
           <div class="flex items-center justify-center h-10 w-10 rounded-xl"
@@ -43,12 +41,10 @@
           </ul>
         </div>
 
-        <!-- lista toggle: uno per parametro -->
         <div class="space-y-3">
           <label v-for="p in PARAMETRI" :key="p.key"
                  class="flex items-center justify-between gap-4 rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 cursor-pointer hover:bg-slate-100 transition-colors">
             <span class="text-sm font-semibold text-slate-700">{{ p.label }}</span>
-            <!-- toggle switch -->
             <button type="button" role="switch" :aria-checked="form[p.key]" @click="form[p.key] = !form[p.key]"
                     class="relative inline-flex h-6 w-11 flex-none items-center rounded-full transition-colors"
                     :class="form[p.key] ? 'bg-emerald-500' : 'bg-slate-300'">
@@ -80,7 +76,6 @@ import { authFetch } from '../services/auth';
 
 const props = defineProps({
   modelValue: { type: Boolean, required: true },
-  // la struttura da modificare; deve avere _id e (opzionale) accessibilita
   struttura: { type: Object, default: null }
 });
 
@@ -89,20 +84,18 @@ const emit = defineEmits(['update:modelValue', 'updated']);
 const API_BASE_URL = '/api/v1';
 const SOGLIA = 3;
 
-// elenco parametri: la `key` deve combaciare ESATTAMENTE coi campi del modello backend
 const PARAMETRI = [
-  { key: 'rampa',                label: 'Rampa di accesso' },
-  { key: 'ascensore',            label: 'Ascensore' },
-  { key: 'bagnoAccessibile',     label: 'Bagno accessibile' },
+  { key: 'rampa', label: 'Rampa di accesso' },
+  { key: 'ascensore', label: 'Ascensore' },
+  { key: 'bagnoAccessibile', label: 'Bagno accessibile' },
   { key: 'ingressoSenzaGradini', label: 'Ingresso senza gradini' },
-  { key: 'parcheggioRiservato',  label: 'Parcheggio riservato' }
+  { key: 'parcheggioRiservato', label: 'Parcheggio riservato' }
 ];
 
 const isLoading = ref(false);
 const serverError = ref('');
 const serverErrorDetails = ref([]);
 
-// stato locale dei toggle, inizializzato a false
 const form = ref({
   rampa: false,
   ascensore: false,
@@ -111,13 +104,11 @@ const form = ref({
   parcheggioRiservato: false
 });
 
-// quando il modale si apre, precarica i valori dalla struttura passata.
-// alla chiusura azzera gli errori. Niente fetch: i dati arrivano già dal GET /structures.
 watch(() => props.modelValue, (aperto) => {
   if (aperto) {
     serverError.value = '';
     serverErrorDetails.value = [];
-    const a = props.struttura?.accessibility || {};
+    const a = props.struttura?.accessibilita || {};
     for (const p of PARAMETRI) {
       form.value[p.key] = a[p.key] === true;
     }
@@ -125,8 +116,7 @@ watch(() => props.modelValue, (aperto) => {
 });
 
 const numAttivi = computed(() => PARAMETRI.filter(p => form.value[p.key]).length);
-// anteprima locale del badge: NON è autoritativa, serve solo come feedback.
-// il valore vero arriva dalla risposta del PATCH.
+
 const anteprimaAccessibile = computed(() => numAttivi.value >= SOGLIA);
 
 const submit = async () => {
@@ -139,8 +129,6 @@ const submit = async () => {
   serverError.value = '';
   serverErrorDetails.value = [];
 
-  // invio TUTTI i 5 campi come booleani. Il backend accetta solo boolean veri
-  // (niente stringhe), e `form` contiene già boolean: nessuna coercizione necessaria.
   const payload = {
     rampa: form.value.rampa,
     ascensore: form.value.ascensore,
@@ -152,6 +140,7 @@ const submit = async () => {
   try {
     const res = await authFetch(`${API_BASE_URL}/structures/${props.struttura._id}/accessibility`, {
       method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(payload)
     });
     const data = await res.json().catch(() => ({}));

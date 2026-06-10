@@ -3,7 +3,6 @@
  
     <main class="flex-1 relative flex items-center justify-center bg-slate-200 z-0 rounded-2xl overflow-hidden shadow-inner">
  
-      <!-- bottone per riaprire il pannello quando è chiuso -->
       <transition name="slide-button">
         <button
           v-if="!isSidebarOpen"
@@ -16,7 +15,6 @@
         </button>
       </transition>
  
-      <!-- header account in alto a destra (coerente con HomeOperatore) -->
       <div class="absolute top-6 right-6 z-[401] flex items-center gap-3 bg-white/95 backdrop-blur rounded-2xl shadow-lg border border-slate-100 px-4 py-3">
         <div class="text-right">
           <p class="text-sm font-extrabold text-slate-800 leading-tight">{{ user?.nome }}</p>
@@ -36,7 +34,7 @@
         </button>
       </div>
  
-      <!-- la mappa filtra le strutture sul mio id (prop proprietarioId) -->
+
       <Mappa
         ref="mappaRef"
         :proprietario-id="user?._id"
@@ -44,7 +42,7 @@
       />
     </main>
  
-    <!-- PANNELLO MASTER-DETAIL -->
+
     <transition name="slide-sidebar">
       <aside
         v-if="isSidebarOpen"
@@ -69,10 +67,8 @@
           </button>
         </div>
  
-        <!-- corpo: master (lista strutture) oppure detail (segnalazioni) -->
         <div class="flex-1 overflow-y-auto">
  
-          <!-- ===== MASTER: lista strutture ===== -->
           <div v-if="!strutturaSelezionata" class="p-4 space-y-2">
             <p class="px-2 py-1 text-xs font-bold uppercase tracking-wider text-slate-400">
               Le tue strutture
@@ -103,7 +99,6 @@
                   <p class="text-xs text-slate-400 capitalize mt-0.5">{{ s.categoria }}</p>
                   <p class="text-xs text-slate-400 truncate mt-0.5">{{ s.indirizzo }}</p>
                 </div>
-                <!-- badge accessibilità derivata server-side -->
                 <span
                   class="shrink-0 text-[10px] font-bold px-2 py-1 rounded-full"
                   :class="s.accessibile ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-100 text-slate-500'"
@@ -114,9 +109,8 @@
             </button>
           </div>
  
-          <!-- ===== DETAIL: segnalazioni della struttura selezionata ===== -->
           <div v-else class="p-4">
-            <!-- breadcrumb / back -->
+
             <button type="button" @click="deselezionaStruttura"
               class="flex items-center gap-1.5 text-sm font-semibold text-slate-500 hover:text-emerald-600 mb-4 transition-colors">
               <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -126,8 +120,27 @@
             </button>
  
             <div class="px-1 mb-4">
-              <h3 class="text-lg font-extrabold text-slate-800 leading-tight">{{ strutturaSelezionata.nome }}</h3>
+              <div class="flex items-start justify-between gap-2">
+                <h3 class="text-lg font-extrabold text-slate-800 leading-tight">{{ strutturaSelezionata.nome }}</h3>
+                <span v-if="strutturaSelezionata.accessibile"
+                  class="shrink-0 inline-flex items-center gap-1 text-[10px] font-bold text-emerald-700 bg-emerald-50 border border-emerald-100 px-2 py-1 rounded-full">
+                  <svg xmlns="http://www.w3.org/2000/svg" class="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7" />
+                  </svg>
+                  Accessibile
+                </span>
+              </div>
               <p class="text-xs text-slate-400 capitalize mt-0.5">{{ strutturaSelezionata.categoria }} · {{ strutturaSelezionata.indirizzo }}</p>
+
+              <div v-if="tagAccessibilita.length" class="flex flex-wrap gap-1.5 mt-3">
+                <span v-for="tag in tagAccessibilita" :key="tag"
+                  class="text-[11px] font-semibold text-emerald-700 bg-emerald-50 border border-emerald-100 px-2 py-0.5 rounded-md">
+                  {{ tag }}
+                </span>
+              </div>
+              <p v-else class="text-[11px] text-slate-400 italic mt-3">
+                Nessun parametro di accessibilità attivo.
+              </p>
             </div>
  
             <div v-if="loadingReport" class="px-1 py-8 text-center text-sm text-slate-400">
@@ -139,7 +152,6 @@
             </div>
  
             <template v-else>
-              <!-- DA GESTIRE -->
               <p class="px-1 py-1 text-xs font-bold uppercase tracking-wider text-amber-500">
                 Da gestire ({{ daGestire.length }})
               </p>
@@ -157,7 +169,6 @@
                     </span>
                   </div>
 
-                  <!-- descrizione cliccabile: espande/chiude le foto -->
                   <button type="button" @click="toggleFoto(seg._id)"
                     class="w-full text-left flex items-start gap-1.5 mb-3 group">
                     <svg xmlns="http://www.w3.org/2000/svg"
@@ -169,7 +180,6 @@
                     <span class="text-sm text-slate-600 leading-snug">{{ seg.descrizione }}</span>
                   </button>
 
-                  <!-- tendina foto -->
                   <div v-if="segEspansa === seg._id" class="mb-3 pl-5">
                     <div v-if="seg.foto && seg.foto.length > 0" class="flex flex-wrap gap-2">
                       <a v-for="(f, i) in seg.foto" :key="i" :href="f" target="_blank" rel="noopener" class="block">
@@ -190,7 +200,6 @@
                 </div>
               </div>
  
-              <!-- RISOLTE -->
               <p class="px-1 py-1 text-xs font-bold uppercase tracking-wider text-slate-400">
                 Risolte ({{ risolte.length }})
               </p>
@@ -211,8 +220,15 @@
           </div>
         </div>
  
-        <!-- footer: logout -->
         <div class="p-6 border-t border-slate-100 shrink-0 space-y-3">
+
+          <button v-if="strutturaSelezionata" type="button" @click="isFormAccessibilitaOpen = true"
+            class="w-full py-3.5 text-sm font-bold rounded-xl text-emerald-700 bg-emerald-50 hover:bg-emerald-100 border border-emerald-100 transition-all flex items-center justify-center gap-2">
+            <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+            </svg>
+            Modifica accessibilità
+          </button>
           <button type="button" @click="isFormStrutturaOpen = true"
             class="w-full py-3.5 text-sm font-bold rounded-xl text-white bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-600 hover:to-teal-600 shadow-lg shadow-emerald-200 transition-all transform hover:-translate-y-0.5 active:translate-y-0">
             + Registra nuova struttura
@@ -225,7 +241,6 @@
       </aside>
     </transition>
  
-    <!-- banner di esito chiusura -->
     <transition name="slide-down">
       <div v-if="bannerMsg"
         class="absolute top-6 left-1/2 transform -translate-x-1/2 z-50 bg-emerald-50 border border-emerald-200 text-emerald-800 px-6 py-4 rounded-2xl shadow-xl flex items-center space-x-3">
@@ -236,6 +251,12 @@
       </div>
     </transition>
     <FormStruttura v-model="isFormStrutturaOpen" @submitted="onStrutturaCreata" />
+
+    <FormAccessibilita
+      v-model="isFormAccessibilitaOpen"
+      :struttura="strutturaSelezionata"
+      @updated="onAccessibilitaAggiornata"
+    />
   </div>
 </template>
 
@@ -246,6 +267,7 @@ import { getUser, clearSession } from '../services/auth';
 import { getMyStructures, getPrivateReportsByStructure, closePrivateReport } from '../services/structureService';
 import Mappa from './Mappa.vue';
 import FormStruttura from './FormStruttura.vue';
+import FormAccessibilita from './FormAccessibilita.vue';
 
 const router = useRouter();
 const user = getUser();
@@ -273,6 +295,8 @@ const bannerMsg = ref('');
 
 const isFormStrutturaOpen = ref(false);
 
+const isFormAccessibilitaOpen = ref(false);
+
 const STATI_DA_GESTIRE = ['IN_VERIFICA', 'APERTA'];
 const daGestire = computed(() =>
   segnalazioni.value.filter(s => STATI_DA_GESTIRE.includes(s.stato))
@@ -284,6 +308,21 @@ const risolte = computed(() =>
 function formatCategoria(c) {
   return String(c || '').replaceAll('_', ' ');
 }
+
+const ETICHETTE_ACCESSIBILITA = {
+  rampa: 'Rampa',
+  ascensore: 'Ascensore',
+  bagnoAccessibile: 'Bagno accessibile',
+  ingressoSenzaGradini: 'Ingresso senza gradini',
+  parcheggioRiservato: 'Parcheggio riservato'
+};
+
+const tagAccessibilita = computed(() => {
+  const acc = strutturaSelezionata.value?.accessibilita || {};
+  return Object.keys(ETICHETTE_ACCESSIBILITA)
+    .filter(k => acc[k] === true)
+    .map(k => ETICHETTE_ACCESSIBILITA[k]);
+});
 
 async function caricaStrutture() {
   if (!user?._id) return;
@@ -332,6 +371,20 @@ function deselezionaStruttura() {
   strutturaSelezionata.value = null;
   segnalazioni.value = [];
   mappaRef.value?.deselezionaStruttura();
+}
+
+function onAccessibilitaAggiornata(strutturaAggiornata) {
+  if (!strutturaAggiornata) return;
+  const idx = strutture.value.findIndex(s => s._id === strutturaAggiornata._id);
+  if (idx !== -1) {
+    strutture.value.splice(idx, 1, { ...strutture.value[idx], ...strutturaAggiornata });
+  }
+
+  if (strutturaSelezionata.value?._id === strutturaAggiornata._id) {
+    strutturaSelezionata.value = { ...strutturaSelezionata.value, ...strutturaAggiornata };
+  }
+  mappaRef.value?.refresh?.();
+  mostraBanner('Profilo di accessibilità aggiornato');
 }
 
 async function chiudiSegnalazione(seg) {
