@@ -120,13 +120,19 @@ exports.createPrivateReport = async (req, res) => {
 
         const fotoUrls = (req.files || []).map(f => `/uploads/reports/${f.filename}`);
 
+        //score iniziale = 1 + scoreAffidabilita dell'autore.
+        // NB: un autore affidabile crea una segnalazione che può nascere già APERTA
+        const autore = await Cittadino.findById(req.loggedUser.userId).select('scoreAffidabilita').lean();
+        const scoreIniziale = 1 + (autore?.scoreAffidabilita ?? 0);
+
         const nuovaSegnalazione = new SegnalazionePrivata({
             descrizione,
             categoria,
             geolocalizzazione: {type: 'Point', coordinates: [lng, lat]},
             foto: fotoUrls,
             autore: req.loggedUser.userId,
-            strutturaAssociata
+            strutturaAssociata,
+            scoreAssociato: scoreIniziale
         });
 
         // verifica persistenza della segnalazione privata

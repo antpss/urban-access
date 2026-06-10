@@ -739,7 +739,10 @@ paths:
       summary: Crea una nuova segnalazione privata su una struttura
       description: |
         Crea una segnalazione relativa a una struttura privata. Solo i cittadini autenticati possono effettuare questa operazione.
-        La segnalazione nasce in stato IN_VERIFICA e diventa visibile solo quando lo score di validazione comunitario raggiunge la soglia.
+        Lo `scoreAssociato` iniziale è `1 + scoreAffidabilita dell'autore`: se raggiunge
+        già la soglia di validazione la segnalazione nasce `APERTA` (autore affidabile),
+        altrimenti nasce `IN_VERIFICA`. In entrambi i casi è visibile sulla mappa: lo
+        `stato` distingue una segnalazione confermata da una ancora in verifica.
       tags:
         - Segnalazioni
       security:
@@ -813,8 +816,11 @@ paths:
     get:
       summary: Recupera segnalazioni private con filtri opzionali
       description: |
-        Restituisce l'elenco delle segnalazioni private. Per i ruoli non-operatore vengono restituite solo le segnalazioni già validate dalla community (visibile=true).
-        Gli operatori vedono anche quelle in stato IN_VERIFICA per finalità di moderazione.
+        Restituisce l'elenco delle segnalazioni private. Per i ruoli non-operatore
+        vengono restituite le segnalazioni in stati "vivi" — `IN_VERIFICA` (validabili)
+        e `APERTA` (validate) — così i cittadini possono vederle e votarle; sono escluse
+        `RISOLTA` e `ARCHIVIATA`. Gli operatori vedono tutti gli stati per moderazione.
+        Se la query passa un `stato` esplicito, quello ha precedenza.
       tags:
         - Segnalazioni
       security:
@@ -933,6 +939,52 @@ paths:
           description: Segnalazione privata non trovata
         '409':
           description: Già validata da questo utente, o segnalazione non validabile nello stato corrente
+  /privateReports/{id}/disputes:
+    post:
+      summary: Smentisci una segnalazione privata
+      description: |
+        US27 — Un cittadino autenticato smentisce una segnalazione privata.
+        Voto unico per coppia (cittadino, segnalazione): un utente non può sia
+        confermare sia smentire la stessa segnalazione. Non si può smentire una
+        propria segnalazione né una in stato terminale (RISOLTA, ARCHIVIATA,
+        PRESA_IN_CARICO) o bloccata.
+
+        La smentita sottrae lo scoreAffidabilita del votante allo scoreAssociato
+        della segnalazione. Se lo score scende a 0 o meno la segnalazione diventa
+        ARCHIVIATA (terminale) e l'autore subisce una penalità pari a
+        ceil(scoreAffidabilita_autore / 2) (clamp a 1), applicata una sola volta.
+        Una APERTA smentita sotto soglia retrocede a IN_VERIFICA; i punti già
+        distribuiti ai validatori restano. Smentire non assegna punti.
+      tags:
+        - Segnalazioni
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: ObjectId della segnalazione privata da smentire
+          schema:
+            type: string
+            pattern: '^[a-fA-F0-9]{24}$'
+          example: 65b1a2c3d4e5f6a7b8c9d0e1
+      responses:
+        '201':
+          description: Smentita registrata (eventualmente con archiviazione)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DisputeResult'
+        '400':
+          $ref: '#/components/responses/ValidationError'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          description: Ruolo non cittadino oppure tentativo di smentire una propria segnalazione
+        '404':
+          description: Segnalazione privata non trovata
+        '409':
+          description: Già votata da questo utente, o segnalazione non smentibile nello stato corrente
   /privateReports/{id}/stato:
     patch:
       tags:
@@ -2226,6 +2278,28 @@ components:
           type: number
           description: Punti mancanti alla soglia (solo se validata=false)
 
+    DisputeResult:
+      type: object
+      properties:
+        message:
+          type: string
+          example: 'Smentita registrata: segnalazione archiviata'
+        statoSegnalazione:
+          type: string
+          enum: [IN_VERIFICA, APERTA, ARCHIVIATA]
+        scoreAssociato:
+          type: number
+          description: Score aggregato sulla segnalazione dopo la smentita
+        sogliaValidazione:
+          type: number
+        archiviata:
+          type: boolean
+          description: true se questa smentita ha portato la segnalazione in ARCHIVIATA
+        penalitaAutore:
+          type: integer
+          description: Punti effettivamente sottratti all'autore (0 se nessuna penalità)
+          example: 3
+
     LoginRequest:
       type: object
       description: Payload per il login.
@@ -2376,9 +2450,14 @@ components:
           example: [sediaARotelle, cecita]
         scoreAffidabilita:
           type: number
-          minimum: 0
-          description: Presente solo per ruolo `cittadino`.
-          example: 0
+          minimum: 1
+          maximum: 14
+          description: |
+            Score di affidabilità del cittadino. Presente solo per ruolo `cittadino`.
+            Range [1, 14], default 5 alla registrazione. Aumenta confermando
+            segnalazioni poi validate; diminuisce se una propria segnalazione
+            viene archiviata per smentita.
+          example: 5
         partitaIVA:
           type: string
           pattern: '^\d{11}$'
@@ -2607,9 +2686,13 @@ components:
               example: 65b4f4e7b8d9c1f4a2e5b6a9
             scoreAssociato:
               type: number
-              minimum: 0
-              description: Punteggio accumulato tramite endorsement crowdsourcing.
-              example: 0
+              description: |
+                Punteggio di validazione crowdsourcing. Inizializzato a
+                `1 + scoreAffidabilita dell'autore` alla creazione. Le conferme
+                lo aumentano (del peso del votante), le smentite lo diminuiscono.
+                Può diventare negativo a seguito di una smentita: quando scende
+                a 0 o meno la segnalazione passa in `ARCHIVIATA`.
+              example: 6
             sogliaValidazione:
               type: number
               description: Soglia di score per rendere visibile la segnalazione.
@@ -2633,8 +2716,18 @@ components:
             visibile:
               type: boolean
               description: |
-                Se `false`, la segnalazione non appare sulla mappa pubblica.
-                Diventa `true` solo quando `scoreAssociato >= sogliaValidazione`.
+                Indica se la segnalazione appare sulla mappa. È `true` per gli stati
+                non terminali (`IN_VERIFICA`, `APERTA`) e `false` per quelli terminali
+                (`RISOLTA`, `ARCHIVIATA`). Campo ormai derivabile da `stato`, mantenuto
+                per retro-compatibilità.
+              example: true
+            penalitaApplicata:
+              type: boolean
+              description: |
+                `true` quando la penalità all'autore (ingresso in `ARCHIVIATA` da
+                smentita) è già stata applicata. Garantisce che la penalità scatti
+                una sola volta nel ciclo di vita della segnalazione.
+              default: false
               example: false
             motivazioneForzatura:
               type: string

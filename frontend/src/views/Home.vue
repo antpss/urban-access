@@ -90,6 +90,7 @@
       :report="segnalazioneSelezionata"
       @validated="onValidated"
       @score-updated="onScoreUpdated"
+      @archived="onArchived"
     />
     <VetrinaPanel :struttura="strutturaVetrina" @close="chiudiVetrina" />
   </div>
@@ -145,10 +146,22 @@ const onValidated = ({ stato }) => {
   mappaRef.value?.refresh();
 };
 
-const onScoreUpdated = ({ scoreAssociato }) => {
+const onScoreUpdated = ({ scoreAssociato, stato }) => {
   if (segnalazioneSelezionata.value) {
-    segnalazioneSelezionata.value = { ...segnalazioneSelezionata.value, scoreAssociato };
+    segnalazioneSelezionata.value = {
+      ...segnalazioneSelezionata.value,
+      scoreAssociato,
+      ...(stato ? { stato } : {})
+    };
   }
+  //una smentita può aver fatto retrocedere lo stato: riallineo i marker
+  mappaRef.value?.refresh();
+};
+
+// segnalazione archiviata da smentita: sparisce dalla mappa, chiudo il modale
+const onArchived = () => {
+  isValidazioneOpen.value = false;
+  mappaRef.value?.refresh();
 };
 
 const onSegnalazioneSubmitted = () => {

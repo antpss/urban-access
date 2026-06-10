@@ -4,7 +4,11 @@ const Cittadino = require('../models/Cittadino');
 const ValidazioneSegnalazione = require('../models/ValidazioneSegnalazione');
 
 const SCORE_MAX = 14;        // cap scoreAffidabilita (vincolo schema Cittadino)
+const SCORE_MIN = 1;         // minimo scoreAffidabilita
 const PAYOUT_POOL = 10;      // monte-punti distribuito alla validazione
+
+//stati su cui non è ammesso alcun voto (conferma o smentita)
+const STATI_NON_VOTABILI = ['RISOLTA', 'ARCHIVIATA', 'PRESA_IN_CARICO'];
 
 //POST /api/v1/privateReports/:id/validations
 
@@ -107,16 +111,15 @@ exports.validatePrivateReport = async (req, res) => {
 
         //check soglia
         if (segnalazione.scoreAssociato >= segnalazione.sogliaValidazione) {
-            //snapshot validatori fino a ora (incluso questo voto)
+            //snapshot dei soli voti di CONFERMA (le smentite non ricevono payout)
             const votiContribuenti = await ValidazioneSegnalazione
-                .find({ segnalazione: segnalazione._id })
+                .find({ segnalazione: segnalazione._id, tipo: 'conferma' })
                 .session(useTransaction ? session : null);
 
             const N = votiContribuenti.length;
             const payout = Math.floor(PAYOUT_POOL / N);   // interi, arrotondati per difetto
 
-            //transizione: il pre('validate') consente APERTA perché soglia raggiunta
-            segnalazione.stato = 'APERTA';
+            //lo stato (APERTA) è derivato automaticamente dal pre('validate') in base allo score
             await segnalazione.save(useTransaction ? { session } : {});
 
             //marca i voti come contribuenti
@@ -176,6 +179,142 @@ exports.validatePrivateReport = async (req, res) => {
             return res.status(400).json({ error: 'Validazione fallita', details: [{ field: err.path, message: 'tipo non valido' }] });
         }
         console.error('[POST /privateReports/:id/validations]', err);
+        return res.status(500).json({ error: 'Errore interno del server' });
+    } finally {
+        if (session) session.endSession();
+    }
+};
+
+//POST /api/v1/privateReports/:id/disputes
+//  - scoreAssociato -= scoreAffidabilita del votante (snapshot in pesoVoto)
+//  - lo stato viene ricalcolato dal pre('validate') in base al nuovo score
+//  - se entra in ARCHIVIATA, l'autore subisce -ceil(scoreAff_autore/2) clamp a SCORE_MIN, una sola volta
+//  - smentire NON dà punti a chi smentisce
+//  - voto unico per coppia (votante, segnalazione): unique index => 409 sul doppio
+exports.disputePrivateReport = async (req, res) => {
+    const reportId = req.params.id;
+    const userId = req.loggedUser.userId;
+
+    const HEX24 = /^[a-fA-F0-9]{24}$/;
+    if (!HEX24.test(reportId)) {
+        return res.status(400).json({
+            error: 'Validazione fallita',
+            details: [{ field: 'id', message: 'ObjectId segnalazione non valido' }]
+        });
+    }
+
+    let session = null;
+    let useTransaction = false;
+    try {
+        session = await mongoose.startSession();
+        try {
+            session.startTransaction();
+            useTransaction = true;
+        } catch (txErr) {
+            useTransaction = false;
+        }
+
+        const segnalazione = await SegnalazionePrivata
+            .findById(reportId)
+            .session(useTransaction ? session : null);
+
+        if (!segnalazione) {
+            await abort(session, useTransaction);
+            return res.status(404).json({ error: 'Segnalazione privata non trovata' });
+        }
+
+        //stati terminali/bloccati non sono smentibili (RISOLTA blocca come ARCHIVIATA)
+        if (segnalazione.bloccaModifica || STATI_NON_VOTABILI.includes(segnalazione.stato)) {
+            await abort(session, useTransaction);
+            return res.status(409).json({ error: 'Segnalazione non smentibile nello stato corrente' });
+        }
+
+        //divieto di auto-smentita
+        if (String(segnalazione.autore) === String(userId)) {
+            await abort(session, useTransaction);
+            return res.status(403).json({ error: 'Non puoi smentire una tua segnalazione' });
+        }
+
+        const votante = await Cittadino
+            .findById(userId)
+            .session(useTransaction ? session : null);
+        if (!votante) {
+            await abort(session, useTransaction);
+            return res.status(403).json({ error: 'Solo un cittadino può smentire' });
+        }
+        const pesoVoto = votante.scoreAffidabilita;
+
+        //creazione voto di smentita: unique index protegge dal doppio voto (vale anche
+        //incrociato con la conferma: un utente non può sia confermare sia smentire la stessa)
+        try {
+            await ValidazioneSegnalazione.create([{
+                segnalazione: segnalazione._id,
+                validatore: userId,
+                tipo: 'smentita',
+                pesoVoto,
+                haContribuitoAllaValidazione: false
+            }], useTransaction ? { session } : {});
+        } catch (dupErr) {
+            if (dupErr && dupErr.code === 11000) {
+                await abort(session, useTransaction);
+                return res.status(409).json({ error: 'Hai già votato questa segnalazione' });
+            }
+            throw dupErr;
+        }
+
+        //applico la smentita allo score aggregato
+        segnalazione.scoreAssociato -= pesoVoto;
+
+        //se lo stato è forzato da operatore, lo score cambia ma lo stato NON si ricalcola
+        const statoForzato = segnalazione._forzaturaOperatore === true;
+
+        //calcolo se questa smentita porta all'archiviazione (solo se non forzata)
+        const andraInArchivio = !statoForzato
+            && segnalazione.scoreAssociato <= 0
+            && !segnalazione.penalitaApplicata;
+
+        let penalita = null;
+        if (andraInArchivio) {
+            //penalità all'autore: -ceil(scoreAff_autore/2), clamp a SCORE_MIN. Una sola volta.
+            const autore = await Cittadino
+                .findById(segnalazione.autore)
+                .session(useTransaction ? session : null);
+            if (autore) {
+                const decremento = Math.ceil(autore.scoreAffidabilita / 2);
+                const prima = autore.scoreAffidabilita;
+                autore.scoreAffidabilita = Math.max(prima - decremento, SCORE_MIN);
+                await autore.save(useTransaction ? { session } : {});
+                penalita = { autoreId: String(autore._id), prima, dopo: autore.scoreAffidabilita };
+            }
+            segnalazione.penalitaApplicata = true;
+        }
+
+        //il pre('validate') ricalcola stato/visibilità dal nuovo score (se non forzato)
+        await segnalazione.save(useTransaction ? { session } : {});
+
+        await commit(session, useTransaction);
+
+        return res.status(201).json({
+            message: segnalazione.stato === 'ARCHIVIATA'
+                ? 'Smentita registrata: segnalazione archiviata'
+                : 'Smentita registrata',
+            statoSegnalazione: segnalazione.stato,
+            scoreAssociato: segnalazione.scoreAssociato,
+            sogliaValidazione: segnalazione.sogliaValidazione,
+            archiviata: segnalazione.stato === 'ARCHIVIATA',
+            penalitaAutore: penalita ? (penalita.prima - penalita.dopo) : 0
+        });
+
+    } catch (err) {
+        await abort(session, useTransaction);
+        if (err.name === 'ValidationError') {
+            const details = Object.values(err.errors).map(e => ({ field: e.path, message: e.message }));
+            return res.status(400).json({ error: 'Validazione fallita', details });
+        }
+        if (err.name === 'CastError') {
+            return res.status(400).json({ error: 'Validazione fallita', details: [{ field: err.path, message: 'tipo non valido' }] });
+        }
+        console.error('[POST /privateReports/:id/disputes]', err);
         return res.status(500).json({ error: 'Errore interno del server' });
     } finally {
         if (session) session.endSession();
